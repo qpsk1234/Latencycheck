@@ -119,7 +119,7 @@ fun HistoryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                                     colorConfigJson = colorConfigJson,
                                     onClick = { selectedRecord = record }
                                 )
-                                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), thickness = 0.5.dp)
+                                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), thickness = 1.dp)
                             }
                         }
                     }

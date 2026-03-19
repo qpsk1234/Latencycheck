@@ -10,11 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material3.*
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,11 +24,15 @@ import com.example.latencycheck.viewmodel.MainViewModel
 import com.example.latencycheck.viewmodel.UiState
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
+import com.patrykandpatrick.vico.compose.axis.vertical.rememberEndAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
+import com.patrykandpatrick.vico.compose.chart.column.columnChart
 import com.patrykandpatrick.vico.compose.chart.line.lineChart
+import com.patrykandpatrick.vico.core.chart.line.LineChart
 import com.patrykandpatrick.vico.core.entry.FloatEntry
 import com.patrykandpatrick.vico.core.entry.entryModelOf
 import com.patrykandpatrick.vico.core.entry.entryOf
+import kotlin.math.abs
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
@@ -69,7 +73,7 @@ fun SummaryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
     ) { innerPadding ->
         Column(
             modifier = Modifier
-                .padding(innerPadding)
+                .padding(8.dp)
                 .fillMaxSize()
         ) {
             when (uiState) {
@@ -97,16 +101,22 @@ fun SummaryContent(records: List<MeasurementRecord>, colorConfigJson: String) {
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // 0. General Stats
+        item {
+            SectionHeader("Overall Statistics")
+            GeneralStatsCard(records)
+        }
+
         // 1. Station Summary
         item {
             SectionHeader("Station Statistics (Locations with '駅')")
             StationStatsCard(records)
         }
 
-        // 2. Latency Chart
+        // 2. Latency & Signal Chart
         item {
-            SectionHeader("Latency Timeline (ms)")
-            LatencyTimelineCard(records, colorConfigJson)
+            SectionHeader("Latency & Signal Trend")
+            LatencySignalChartCard(records, colorConfigJson)
         }
 
         // 3. Band Timeline (NR/LTE color-coded background or points)
@@ -129,7 +139,7 @@ fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(bottom = 8.dp)
+        modifier = Modifier.padding(8.dp)
     )
 }
 
@@ -150,7 +160,7 @@ fun StationStatsCard(records: List<MeasurementRecord>) {
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
                 Text("Station", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelMedium)
                 Text("Lat.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 Text("5G%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
@@ -158,7 +168,7 @@ fun StationStatsCard(records: List<MeasurementRecord>) {
             }
             HorizontalDivider()
             stats.take(10).forEach { stat ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
                     Text(stat.name, modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
                     Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
                     Text("${stat.nrRate}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -172,21 +182,75 @@ fun StationStatsCard(records: List<MeasurementRecord>) {
 data class StationStat(val name: String, val avgLatency: Int, val nrRate: Int, val avgSignal: Int?)
 
 @Composable
-fun LatencyTimelineCard(records: List<MeasurementRecord>, colorConfigJson: String) {
-    Card(modifier = Modifier.fillMaxWidth().height(250.dp)) {
-        val displayRecords = records.take(100).reversed()
-        val entries = displayRecords.mapIndexed { index, record ->
-            entryOf(index.toFloat(), record.latencyMs.toFloat())
+fun GeneralStatsCard(records: List<MeasurementRecord>) {
+    val avgLatency = records.map { it.latencyMs }.average().toInt()
+    val maxLatency = records.maxOf { it.latencyMs }
+    val minLatency = records.minOf { it.latencyMs }
+    val rate5g = (records.count { it.networkType.contains("5G") }.toFloat() / records.size * 100).toInt()
+    
+    val jitters = records.zipWithNext { a, b -> abs(a.latencyMs - b.latencyMs) }
+    val avgJitter = if (jitters.isEmpty()) 0 else jitters.average().toInt()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            StatItem("Avg Latency", "${avgLatency}ms", MaterialTheme.colorScheme.primary)
+            StatItem("Max Latency", "${maxLatency}ms", MaterialTheme.colorScheme.error)
+            StatItem("Avg Jitter", "${avgJitter}ms", MaterialTheme.colorScheme.secondary)
+            StatItem("5G Rate", "${rate5g}%", Color(0xFF4CAF50))
         }
-        val model = entryModelOf(entries)
-        
-        Chart(
-            chart = lineChart(),
-            model = model,
-            startAxis = rememberStartAxis(),
-            bottomAxis = rememberBottomAxis(),
-            modifier = Modifier.padding(16.dp)
-        )
+    }
+}
+
+@Composable
+fun StatItem(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        androidx.compose.material3.Text(label, style = MaterialTheme.typography.labelSmall)
+        androidx.compose.material3.Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+@Composable
+fun LatencySignalChartCard(records: List<MeasurementRecord>, colorConfigJson: String) {
+    val displayRecords = records.take(100).reversed()
+    if (displayRecords.isEmpty()) return
+
+    Card(modifier = Modifier.fillMaxWidth().height(300.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            val latencyNREntries = mutableListOf<FloatEntry>()
+            val latencyLTEEntries = mutableListOf<FloatEntry>()
+            val signalEntries = mutableListOf<FloatEntry>()
+            
+            displayRecords.forEachIndexed { index, record ->
+                val isNR = record.networkType.contains("5G")
+                val latency = record.latencyMs.toFloat()
+                val signal = record.signalStrength?.toFloat() ?: -140f
+
+                if (isNR) {
+                    latencyNREntries.add(entryOf(index.toFloat(), latency))
+                } else {
+                    latencyLTEEntries.add(entryOf(index.toFloat(), latency))
+                }
+                signalEntries.add(entryOf(index.toFloat(), signal))
+            }
+
+            val nrColor = Color(0xFF4CAF50).toArgb()
+            val lteColor = Color(0xFF2196F3).toArgb()
+            val signalColor = Color(0xFFFF9800).toArgb()
+
+            Chart(
+                chart = lineChart(
+                    lines = listOf(
+                        LineChart.LineSpec(lineColor = nrColor),
+                        LineChart.LineSpec(lineColor = lteColor),
+                        LineChart.LineSpec(lineColor = signalColor, lineThicknessDp = 1f)
+                    )
+                ),
+                model = entryModelOf(latencyNREntries, latencyLTEEntries, signalEntries),
+                startAxis = rememberStartAxis(title = "Value"),
+                bottomAxis = rememberBottomAxis(),
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
 }
 
@@ -202,12 +266,12 @@ fun NetworkTypeTimelineCard(records: List<MeasurementRecord>) {
                         .weight(1f)
                         .fillMaxHeight()
                         .background(color)
-                        .padding(horizontal = 0.5.dp)
+                        .padding(1.dp)
                 )
             }
         }
     }
-    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+    Row(horizontalArrangement = Arrangement.Center, modifier = Modifier.fillMaxWidth().padding(4.dp)) {
         LegendItem("5G (NR)", Color(0xFF4CAF50))
         Spacer(modifier = Modifier.width(16.dp))
         LegendItem("4G (LTE)", Color(0xFF2196F3))

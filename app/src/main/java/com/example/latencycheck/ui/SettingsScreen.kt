@@ -1,31 +1,15 @@
 package com.example.latencycheck.ui
 
 import android.content.Intent
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -38,6 +22,7 @@ fun SettingsScreen(viewModel: MainViewModel, onNavigateToColorSettings: () -> Un
     val currentUrl by viewModel.targetUrl.collectAsState()
     val currentInterval by viewModel.intervalSeconds.collectAsState()
     val currentThreshold by viewModel.maxLatencyThreshold.collectAsState()
+    val debugEnabled by viewModel.debugEnabled.collectAsState()
 
     var urlInput by remember(currentUrl) { mutableStateOf(currentUrl) }
     var intervalInput by remember(currentInterval) { mutableStateOf(currentInterval.toString()) }
@@ -93,6 +78,19 @@ fun SettingsScreen(viewModel: MainViewModel, onNavigateToColorSettings: () -> Un
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer)
             ) {
                 Text("Configure 10-Stage Colors")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Enable Telephony Debug Logs", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                Switch(
+                    checked = debugEnabled,
+                    onCheckedChange = { viewModel.setDebugEnabled(it) }
+                )
             }
 
             Spacer(modifier = Modifier.height(24.dp))

@@ -70,6 +70,12 @@ class MainViewModel @Inject constructor(
         AppPreferences.DEFAULT_COLOR_CONFIG
     )
 
+    val debugEnabled: StateFlow<Boolean> = appPreferences.debugEnabled.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        false
+    )
+
     fun setTargetUrl(url: String) {
         viewModelScope.launch { appPreferences.setTargetUrl(url) }
     }
@@ -84,6 +90,10 @@ class MainViewModel @Inject constructor(
 
     fun setColorConfigJson(json: String) {
         viewModelScope.launch { appPreferences.setColorConfigJson(json) }
+    }
+
+    fun setDebugEnabled(enabled: Boolean) {
+        viewModelScope.launch { appPreferences.setDebugEnabled(enabled) }
     }
 
     fun toggleService(context: Context) {

@@ -25,6 +25,7 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
         val IS_RUNNING_KEY = booleanPreferencesKey("is_running")
         val MAX_LATENCY_THRESHOLD_KEY = longPreferencesKey("max_latency_threshold")
         val COLOR_CONFIG_JSON_KEY = stringPreferencesKey("color_config_json")
+        val DEBUG_ENABLED_KEY = booleanPreferencesKey("debug_enabled")
         
         const val DEFAULT_COLOR_CONFIG = """
             [
@@ -62,6 +63,10 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
         preferences[COLOR_CONFIG_JSON_KEY] ?: DEFAULT_COLOR_CONFIG
     }
 
+    val debugEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[DEBUG_ENABLED_KEY] ?: false
+    }
+
     suspend fun setTargetUrl(url: String) {
         context.dataStore.edit { preferences ->
             preferences[TARGET_URL_KEY] = url
@@ -89,6 +94,12 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
     suspend fun setColorConfigJson(json: String) {
         context.dataStore.edit { preferences ->
             preferences[COLOR_CONFIG_JSON_KEY] = json
+        }
+    }
+
+    suspend fun setDebugEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[DEBUG_ENABLED_KEY] = enabled
         }
     }
 }
