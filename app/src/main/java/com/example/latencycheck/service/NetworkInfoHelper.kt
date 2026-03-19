@@ -27,100 +27,75 @@ class NetworkInfoHelper @Inject constructor(
     private var isDebugEnabled = false
 
     init {
-        registerNrDetector()
         CoroutineScope(Dispatchers.IO).launch {
             appPreferences.debugEnabled.collect { isDebugEnabled = it }
         }
+        registerNrDetector()
     }
 
     private fun registerNrDetector() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             try {
-                val callback = object : android.telephony.TelephonyCallback(), 
+                val callback = object : android.telephony.TelephonyCallback(),
                     android.telephony.TelephonyCallback.DisplayInfoListener,
                     android.telephony.TelephonyCallback.ServiceStateListener {
-                    
+
                     override fun onDisplayInfoChanged(displayInfo: android.telephony.TelephonyDisplayInfo) {
-                        val overrideType = displayInfo.overrideNetworkType
-                        val oldType = currentNrType
-
-                        // Prefer explicit override flags for NSA/ADVANCED (NSA+),
-                        // otherwise fall back to TelephonyManager.networkType or
-                        // try to read networkType from displayInfo reflectively.
-                        currentNrType = when (overrideType) {
-                            android.telephony.TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_NSA -> "5G NSA"
-                            android.telephony.TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_ADVANCED -> "5G NSA+"
-                            else -> {
-                                if (telephonyManager.networkType == TelephonyManager.NETWORK_TYPE_NR) {
-                                    "5G SA"
-                                } else {
-                                    // Some devices/reporters expose the underlying network type
-                                    // on TelephonyDisplayInfo; try reflectively if available.
-                                    val reflectedNetType = try {
-                                        val m = displayInfo.javaClass.getMethod("getNetworkType")
-                                        (m.invoke(displayInfo) as? Int) ?: -1
-                                    } catch (e: Exception) { -1 }
-
-                                    if (reflectedNetType == TelephonyManager.NETWORK_TYPE_NR) "5G SA" else "LTE"
-                                }
-                            }
-                        }
-
-                        if (isDebugEnabled) {
-                            Log.d("NetworkInfoHelper", "DisplayInfoChanged: overrideType=$overrideType, reflectedNetType=${try { displayInfo.javaClass.getMethod("getNetworkType"); "available" } catch (e: Exception) { "na" }}, networkType=${telephonyManager.networkType}, result=$currentNrType (was $oldType)")
-                        }
+                        // UI表示用のフラグ(NSA表示)は、物理的にLTEに落ちていても残るため参考程度にする
+                        updateCurrentNetworkStatus(null)
                     }
 
                     override fun onServiceStateChanged(serviceState: android.telephony.ServiceState) {
+                        updateCurrentNetworkStatus(serviceState)
+                    }
+
+                    private fun updateCurrentNetworkStatus(serviceState: android.telephony.ServiceState?) {
+                        val actualNetType = try {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                telephonyManager.dataNetworkType
+                            } else {
+                                telephonyManager.networkType
+                            }
+                        } catch (e: SecurityException) {
+                            TelephonyManager.NETWORK_TYPE_UNKNOWN
+                        }
+                    
                         val oldType = currentNrType
-
-                        // Re-evaluate on service state change (e.g. SA/LTE handover).
-                        // Prefer registered cell info when available to determine SA vs NSA.
-                        try {
-                            val cellInfoList = telephonyManager.allCellInfo
-                            var determinedType: String? = null
-
-                            if (cellInfoList != null) {
-                                for (ci in cellInfoList) {
-                                    if (ci.isRegistered) {
-                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && ci is CellInfoNr) {
-                                            // Registered NR cell -> likely SA (if no NSA override)
-                                            determinedType = "5G SA"
-                                            break
-                                        } else if (ci is CellInfoLte) {
-                                            determinedType = "LTE"
-                                            break
-                                        }
-                                    }
+                        val ssString = serviceState?.toString() ?: ""
+                    
+                        currentNrType = when {
+                            // 1. 物理ネットワーク型が NR(20) なら SA 確定
+                            actualNetType == TelephonyManager.NETWORK_TYPE_NR -> "5G SA"
+                    
+                            // 2. 物理ネットワークが LTE(13) の場合の厳密な判定
+                            actualNetType == TelephonyManager.NETWORK_TYPE_LTE -> {
+                                // "nrState=CONNECTED" は「実際にNRの電波を掴んで通信中」を意味する。
+                                // "NOT_RESTRICTED" は「LTEに繋がっていて5G利用可能(アンテナには5Gと出る)」状態なので、物理的にはLTEとして扱う
+                                if (ssString.contains("nrState=CONNECTED")) {
+                                    "5G NSA"
+                                } else {
+                                    "LTE"
                                 }
                             }
-
-                            // Fall back to TelephonyManager networkType if not determined
-                            if (determinedType == null) {
-                                determinedType = if (telephonyManager.networkType == TelephonyManager.NETWORK_TYPE_NR) "5G SA" else "LTE"
-                            }
-
-                            currentNrType = determinedType
-                        } catch (e: Exception) {
-                            // Conservative fallback
-                            currentNrType = if (telephonyManager.networkType == TelephonyManager.NETWORK_TYPE_NR) "5G SA" else "LTE"
+                    
+                            else -> "Other"
                         }
-
-                        if (isDebugEnabled) {
-                            Log.d("NetworkInfoHelper", "ServiceStateChanged: $serviceState, networkType=${telephonyManager.networkType}, result=$currentNrType (was $oldType)")
-                            dumpRawTelephonyInfo("ServiceStateChanged")
+                    
+                        if (isDebugEnabled && oldType != currentNrType) {
+                            Log.d("NetworkInfoHelper", "Status Updated: $oldType -> $currentNrType (NetType=$actualNetType)")
                         }
                     }
                 }
+        
                 telephonyManager.registerTelephonyCallback(context.mainExecutor, callback)
-            } catch (e: Exception) { 
+            } catch (e: Exception) {
                 Log.e("NetworkInfoHelper", "Error registering callback", e)
             }
         }
     }
 
     data class NetworkState(
-        val type: String, // "LTE", "5G NSA", "5G SA", etc.
+        val type: String,
         val band: String,
         val signalStrength: Int?,
         val bandwidth: Int?,
@@ -128,7 +103,7 @@ class NetworkInfoHelper @Inject constructor(
         val timingAdvance: Int?
     )
 
-    @SuppressLint("MissingPermission") // User will handle permissions
+    @SuppressLint("MissingPermission")
     fun getCurrentNetworkInfo(): NetworkState {
         var networkType = currentNrType
         var bandInfo = "N/A"
@@ -150,9 +125,20 @@ class NetworkInfoHelper @Inject constructor(
                 telephonyManager
             }
 
-            // If we are on a different subID, we might need a separate listener or just fallback
-            if (networkType == "UNKNOWN") {
-                networkType = if (tm.networkType == TelephonyManager.NETWORK_TYPE_NR) "5G SA" else "LTE"
+            // --- リアルタイム判定の強化 ---
+            val realTimeNetType = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tm.dataNetworkType else tm.networkType
+            } catch (e: Exception) { TelephonyManager.NETWORK_TYPE_UNKNOWN }
+
+            val ssString = try {
+                tm.serviceState?.toString() ?: ""
+            } catch (e: Exception) { "" }
+
+            // 呼び出し時点の物理状態を最優先
+            if (realTimeNetType == TelephonyManager.NETWORK_TYPE_NR) {
+                networkType = "5G SA"
+            } else if (realTimeNetType == TelephonyManager.NETWORK_TYPE_LTE) {
+                networkType = if (ssString.contains("nrState=CONNECTED")) "5G NSA" else "LTE"
             }
 
             val activeSubInfo = subscriptionManager.activeSubscriptionInfoList?.find { it.subscriptionId == subId }
@@ -160,6 +146,9 @@ class NetworkInfoHelper @Inject constructor(
             val targetMnc = activeSubInfo?.mncString
 
             val cellInfoList = tm.allCellInfo
+            var hasRegisteredNr = false
+            var hasRegisteredLte = false
+            
             if (cellInfoList != null) {
                 val filteredCellInfo = cellInfoList.filter { cellInfo ->
                     val cellSubId = try {
@@ -193,6 +182,8 @@ class NetworkInfoHelper @Inject constructor(
                 for (cellInfo in filteredCellInfo) {
                     if (cellInfo.isRegistered) {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr) {
+                            hasRegisteredNr = true
+                            networkType = if (realTimeNetType == TelephonyManager.NETWORK_TYPE_NR) "5G SA" else "5G NSA"
                             val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
                             bandInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
                                 "n" + nr.bands.joinToString(",")
@@ -203,18 +194,21 @@ class NetworkInfoHelper @Inject constructor(
                                 signalStrength = (cellInfo.cellSignalStrength as android.telephony.CellSignalStrengthNr).ssRsrp
                             }
                         } else if (cellInfo is CellInfoLte) {
-                            val lte = cellInfo.cellIdentity
-                            bandInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && lte.bands.isNotEmpty()) {
-                                "B" + lte.bands.joinToString(",")
-                            } else {
-                                "EARFCN: ${lte.earfcn}"
+                            hasRegisteredLte = true
+                            // NSA環境下でLTEがプライマリセルの場合、CellInfoNrよりもこちらが優先されて上書きされるのを防ぐためbandInfoの上書き条件を調整
+                            if (!hasRegisteredNr || bandInfo == "N/A") {
+                                val lte = cellInfo.cellIdentity
+                                bandInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && lte.bands.isNotEmpty()) {
+                                    "B" + lte.bands.joinToString(",")
+                                } else {
+                                    "EARFCN: ${lte.earfcn}"
+                                }
+                                bandwidth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) lte.bandwidth else null
+                                signalStrength = cellInfo.cellSignalStrength.rsrp
+                                timingAdvance = cellInfo.cellSignalStrength.timingAdvance
                             }
-                            bandwidth = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) lte.bandwidth else null
-                            signalStrength = cellInfo.cellSignalStrength.rsrp
-                            timingAdvance = cellInfo.cellSignalStrength.timingAdvance
                         }
                     } else {
-                        // Neighbor cell info
                         if (cellInfo is CellInfoLte) {
                             val id = cellInfo.cellIdentity
                             val bandStr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && id.bands.isNotEmpty()) {
@@ -235,10 +229,18 @@ class NetworkInfoHelper @Inject constructor(
                     }
                 }
             }
+
+            // --- 最終補正: セル情報に基づく強制補正 ---
+            // LTEセルしか掴んでいない（CellInfoにNRがない）かつ、リアルタイムのServiceStateもCONNECTEDでない場合は、完全にLTEと見なす
+            if (hasRegisteredLte && !hasRegisteredNr && !ssString.contains("nrState=CONNECTED")) {
+                networkType = "LTE"
+            }
+
         } catch (e: Exception) { }
 
         val neighborStr = if (neighbors.isNotEmpty()) neighbors.joinToString(";") else null
         val state = NetworkState(networkType, bandInfo, signalStrength, bandwidth, neighborStr, timingAdvance)
+        
         if (isDebugEnabled) {
             Log.d("NetworkInfoHelper", "getCurrentNetworkInfo: result=$state")
             dumpRawTelephonyInfo("getCurrentNetworkInfo")
@@ -246,7 +248,10 @@ class NetworkInfoHelper @Inject constructor(
         return state
     }
 
+    @SuppressLint("MissingPermission")
     private fun dumpRawTelephonyInfo(contextTag: String = "dump") {
+        if (!isDebugEnabled) return
+        
         try {
             val sb = StringBuilder()
             sb.append("DumpTelephonyInfo [$contextTag]: ")
@@ -257,15 +262,17 @@ class NetworkInfoHelper @Inject constructor(
                 sb.append("dataNetworkType=$dnt; ")
             } catch (e: Exception) { /* ignore */ }
 
+            // ★ デバッグログ強化：ServiceState(モデムの生ステータス) をダンプに追加
+            try {
+                val ss = telephonyManager.serviceState
+                val ssCompact = ss?.toString()?.replace('\n', ' ')?.take(200) ?: "null"
+                sb.append("ServiceState=[$ssCompact...]; ")
+            } catch (e: Exception) { }
+
             val subId = try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) android.telephony.SubscriptionManager.getActiveDataSubscriptionId() else android.telephony.SubscriptionManager.getDefaultDataSubscriptionId()
             } catch (e: Exception) { -1 }
             sb.append("subId=$subId; ")
-
-            try {
-                val active = subscriptionManager.activeSubscriptionInfoList
-                sb.append("activeSubs=${active?.size ?: 0}; ")
-            } catch (e: Exception) { /* ignore */ }
 
             try {
                 val cellInfoList = telephonyManager.allCellInfo
@@ -278,12 +285,10 @@ class NetworkInfoHelper @Inject constructor(
                                 val nr = ci.cellIdentity as android.telephony.CellIdentityNr
                                 sb.append(",nrarfcn=${nr.nrarfcn},pci=${nr.pci}")
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) sb.append(",bands=${nr.bands?.joinToString(",")}")
-                                if (ci.cellSignalStrength is android.telephony.CellSignalStrengthNr) sb.append(",rsrp=${(ci.cellSignalStrength as android.telephony.CellSignalStrengthNr).ssRsrp}")
                             } else if (ci is CellInfoLte) {
                                 val lte = ci.cellIdentity
                                 sb.append(",earfcn=${lte.earfcn},pci=${lte.pci}")
                                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) sb.append(",bands=${lte.bands?.joinToString(",")}")
-                                sb.append(",rsrp=${ci.cellSignalStrength.rsrp}")
                             }
                             sb.append("];")
                         } catch (e: Exception) { /* per-cell guard */ }
