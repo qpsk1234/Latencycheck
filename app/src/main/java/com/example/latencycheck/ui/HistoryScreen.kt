@@ -184,9 +184,9 @@ fun RecordRow(record: MeasurementRecord, isSelected: Boolean, colorConfigJson: S
                     text = "${record.signalStrength ?: "?"} dBm",
                     style = MaterialTheme.typography.labelSmall
                 )
-                if (!record.neighborCells.isNullOrBlank()) {
+                if (!record.bandwidth.isNullOrBlank()) {
                     Text(
-                        text = record.neighborCells,
+                        text = record.bandwidth,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.secondary,
                         maxLines = 3

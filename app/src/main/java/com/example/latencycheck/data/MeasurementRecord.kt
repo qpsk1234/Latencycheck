@@ -11,7 +11,7 @@ data class MeasurementRecord(
     val networkType: String,
     val bandInfo: String,
     val signalStrength: Int?,
-    val bandwidth: Int?,
+    val bandwidth: String?,
     val neighborCells: String?,
     val timingAdvance: Int?,
     val latitude: Double,

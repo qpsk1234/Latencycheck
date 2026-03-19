@@ -108,7 +108,7 @@ class MeasureService : Service() {
             bandInfo = networkInfo.band,
             signalStrength = networkInfo.signalStrength,
             bandwidth = networkInfo.bandwidth,
-            neighborCells = networkInfo.neighborCells,
+            neighborCells = null,
             timingAdvance = networkInfo.timingAdvance,
             latitude = location?.latitude ?: 0.0,
             longitude = location?.longitude ?: 0.0,

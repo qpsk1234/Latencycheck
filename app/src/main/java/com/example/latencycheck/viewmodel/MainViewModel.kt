@@ -182,7 +182,7 @@ class MainViewModel @Inject constructor(
                                 val networkType = parts[2]
                                 val bandInfo = parts[3]
                                 val signalStrength = parts[4].toIntOrNull()
-                                val bandwidth = parts[5].toIntOrNull()
+                                val bandwidth = parts[5]
                                 val neighborsRaw = parts[6]
                                 val timingAdvance = parts[7].toIntOrNull()
                                 val latitude = parts[8].toDoubleOrNull() ?: 0.0
