@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample backup rules. The backup rules attach to the application tag
+   in the manifest and indicate what files and databases from the
+   application should be backed up or excluded.
+-->
+<full-backup-content>
+    <!--
+    <include .../>
+    <exclude .../>
+    -->
+</full-backup-content>

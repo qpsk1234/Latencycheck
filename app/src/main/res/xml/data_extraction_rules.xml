@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample data extraction rules. The data extraction rules attach
+   to the application tag in the manifest and indicate what files
+   and databases from the application should be extracted during backup.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- TODO: Add your custom rules here -->
+    </cloud-backup>
+    <!--
+    <device-transfer>
+        <include .../>
+        <exclude .../>
+    </device-transfer>
+    -->
+</data-extraction-rules>
