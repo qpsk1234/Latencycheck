@@ -183,7 +183,7 @@ fun HistorySettingsDialog(
     var selectedColumns by remember { mutableStateOf(currentColumns) }
     var selectedMapMode by remember { mutableStateOf(currentMapMode) }
     
-    val allColumns = listOf("Time", "Latency", "Type", "Band", "Signal", "Location", "RSSI", "RSRP", "RSRQ", "SNR", "Bandwidth")
+    val allColumns = listOf("Time", "Latency", "Type", "Operator", "Cell ID", "PCI", "TA", "Band", "Signal", "Location", "RSSI", "RSRP", "RSRQ", "SNR", "Bandwidth")
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -254,6 +254,10 @@ fun HeaderRow(displayColumns: Set<String>) {
         if ("Time" in displayColumns) Text("Time", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
         if ("Latency" in displayColumns) Text("Lat", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
         if ("Type" in displayColumns) Text("Net", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Operator" in displayColumns) Text("Op", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Cell ID" in displayColumns) Text("CID", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("PCI" in displayColumns) Text("PCI", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("TA" in displayColumns) Text("TA", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
         if ("Band" in displayColumns) Text("Band", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
         if ("Signal" in displayColumns) Text("Sig", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
         if ("Bandwidth" in displayColumns) Text("BW", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
@@ -294,6 +298,34 @@ fun RecordRow(record: MeasurementRecord, isSelected: Boolean, displayColumns: Se
             if ("Type" in displayColumns) {
                 Text(
                     text = record.networkType,
+                    modifier = Modifier.width(60.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if ("Operator" in displayColumns) {
+                Text(
+                    text = record.operatorAlphaShort ?: "",
+                    modifier = Modifier.width(60.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if ("Cell ID" in displayColumns) {
+                Text(
+                    text = record.cellId ?: "",
+                    modifier = Modifier.width(80.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if ("PCI" in displayColumns) {
+                Text(
+                    text = record.pci?.toString() ?: "",
+                    modifier = Modifier.width(60.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            if ("TA" in displayColumns) {
+                Text(
+                    text = record.timingAdvance?.toString() ?: "",
                     modifier = Modifier.width(60.dp),
                     style = MaterialTheme.typography.bodySmall
                 )

@@ -9,6 +9,9 @@ data class MeasurementRecord(
     val timestamp: Long,
     val latencyMs: Long,
     val networkType: String,
+    val operatorAlphaShort: String?, // Added field
+    val cellId: String?, // Added field
+    val pci: Int?, // Added field
     val bandInfo: String,
     val signalStrength: Int?,
     val bandwidth: String?,

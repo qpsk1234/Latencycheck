@@ -159,18 +159,25 @@ class MainViewModel @Inject constructor(
             
             uri?.let {
                 resolver.openOutputStream(it)?.use { outputStream ->
-                    outputStream.write("Time,LatencyMs,Network,Band,SignalRSRP,BW,Neighbors,TA,Latitude,Longitude,LocationName\n".toByteArray())
+                    outputStream.write("Time,LatencyMs,Network,Operator,CellID,PCI,Band,SignalRSRP,BW,Neighbors,TA,RSSI,RSRP,RSRQ,SINR,Latitude,Longitude,LocationName\n".toByteArray())
                     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
                     records.forEach { record ->
                         val fields = listOf(
                             sdf.format(Date(record.timestamp)),
                             record.latencyMs.toString(),
                             escapeCsv(record.networkType),
+                            escapeCsv(record.operatorAlphaShort ?: ""),
+                            escapeCsv(record.cellId ?: ""),
+                            record.pci?.toString() ?: "",
                             escapeCsv(record.bandInfo),
                             record.signalStrength?.toString() ?: "",
                             record.bandwidth?.toString() ?: "",
                             escapeCsv(record.neighborCells ?: ""),
                             record.timingAdvance?.toString() ?: "",
+                            record.rssi?.toString() ?: "",
+                            record.rsrp?.toString() ?: "",
+                            record.rsrq?.toString() ?: "",
+                            record.sinr?.toString() ?: "",
                             record.latitude.toString(),
                             record.longitude.toString(),
                             escapeCsv(record.locationName ?: "")
@@ -195,29 +202,43 @@ class MainViewModel @Inject constructor(
                     
                     reader.forEachLine { line ->
                         val parts = parseCsvLine(line)
-                        if (parts.size >= 11) {
+                        if (parts.size >= 18) {
                             try {
                                 val timestamp = sdf.parse(parts[0])?.time ?: System.currentTimeMillis()
                                 val latencyMs = parts[1].toLongOrNull() ?: 0L
                                 val networkType = parts[2]
-                                val bandInfo = parts[3]
-                                val signalStrength = parts[4].toIntOrNull()
-                                val bandwidth = parts[5]
-                                val neighborsRaw = parts[6]
-                                val timingAdvance = parts[7].toIntOrNull()
-                                val latitude = parts[8].toDoubleOrNull() ?: 0.0
-                                val longitude = parts[9].toDoubleOrNull() ?: 0.0
-                                val locationName = parts[10]
+                                val operatorAlphaShort = parts[3].takeIf { it.isNotEmpty() }
+                                val cellId = parts[4].takeIf { it.isNotEmpty() }
+                                val pci = parts[5].toIntOrNull()
+                                val bandInfo = parts[6]
+                                val signalStrength = parts[7].toIntOrNull()
+                                val bandwidth = parts[8]
+                                val neighborsRaw = parts[9]
+                                val timingAdvance = parts[10].toIntOrNull()
+                                val rssi = parts[11].toIntOrNull()
+                                val rsrp = parts[12].toIntOrNull()
+                                val rsrq = parts[13].toIntOrNull()
+                                val sinr = parts[14].toIntOrNull()
+                                val latitude = parts[15].toDoubleOrNull() ?: 0.0
+                                val longitude = parts[16].toDoubleOrNull() ?: 0.0
+                                val locationName = parts[17]
 
                                 records.add(MeasurementRecord(
                                     timestamp = timestamp,
                                     latencyMs = latencyMs,
                                     networkType = networkType,
+                                    operatorAlphaShort = operatorAlphaShort,
+                                    cellId = cellId,
+                                    pci = pci,
                                     bandInfo = bandInfo,
                                     signalStrength = signalStrength,
                                     bandwidth = bandwidth,
                                     neighborCells = neighborsRaw,
                                     timingAdvance = timingAdvance,
+                                    rssi = rssi,
+                                    rsrp = rsrp,
+                                    rsrq = rsrq,
+                                    sinr = sinr,
                                     latitude = latitude,
                                     longitude = longitude,
                                     locationName = locationName

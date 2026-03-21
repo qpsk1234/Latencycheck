@@ -65,22 +65,36 @@ class LocationHelper @Inject constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 suspendCancellableCoroutine { continuation ->
                     geocoder.getFromLocation(latitude, longitude, 5) { addresses ->
-                        // Prefer station names or landmarks
-                        val stationAddress = addresses.firstOrNull { it.featureName?.contains("駅") == true || it.featureName?.contains("Station") == true }
-                        val address = stationAddress ?: addresses.firstOrNull()
-                        val name = address?.featureName ?: address?.locality ?: address?.subAdminArea ?: address?.adminArea
+                        // Use full street address
+                        val address = addresses.firstOrNull()
+                        val name = buildAddressString(address)
                         continuation.resume(name)
                     }
                 }
             } else {
                 @Suppress("DEPRECATION")
                 val addresses = geocoder.getFromLocation(latitude, longitude, 5)
-                val stationAddress = addresses?.firstOrNull { it.featureName?.contains("駅") == true || it.featureName?.contains("Station") == true }
-                val address = stationAddress ?: addresses?.firstOrNull()
-                address?.featureName ?: address?.locality ?: address?.subAdminArea ?: address?.adminArea
+                val address = addresses?.firstOrNull()
+                buildAddressString(address)
             }
         } catch (e: Exception) {
             null
         }
+    }
+
+    private fun buildAddressString(address: android.location.Address?): String? {
+        if (address == null) return null
+        // Build full address: locality + subLocality + thoroughfare + featureName
+        val parts = mutableListOf<String>()
+        address.locality?.let { parts.add(it) }
+        address.subLocality?.let { parts.add(it) }
+        address.thoroughfare?.let { parts.add(it) }
+        address.subThoroughfare?.let { parts.add(it) }
+        // Fallback to featureName if no other parts
+        if (parts.isEmpty() && address.featureName != null) {
+            parts.add(address.featureName)
+        }
+        return parts.joinToString(" ").takeIf { it.isNotEmpty() }
+            ?: address.getAddressLine(0)
     }
 }

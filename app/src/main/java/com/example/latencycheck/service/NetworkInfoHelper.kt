@@ -141,6 +141,9 @@ class NetworkInfoHelper @Inject constructor(
 
     data class NetworkState(
         val type: String,
+        val operatorAlphaShort: String?,
+        val cellId: String?,
+        val pci: Int?,
         val band: String,
         val signalStrength: Int?,
         val bandwidth: String?, 
@@ -155,6 +158,9 @@ class NetworkInfoHelper @Inject constructor(
     @SuppressLint("MissingPermission")
     fun getCurrentNetworkInfo(): NetworkState {
         var networkType = currentNrType
+        var operatorAlphaShort: String? = null
+        var cellId: String? = null
+        var pci: Int? = null
         var bandInfo = "N/A"
         var signalStrength: Int? = null
         var bandwidthStr: String? = null
@@ -182,6 +188,9 @@ class NetworkInfoHelper @Inject constructor(
             } else {
                 telephonyManager
             }
+
+            // Get operator name
+            operatorAlphaShort = tm.serviceState?.operatorAlphaShort
 
             val realTimeNetType = try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tm.dataNetworkType else tm.networkType
@@ -276,6 +285,10 @@ class NetworkInfoHelper @Inject constructor(
                                 nrSsRsrq = ssNr.ssRsrq
                                 nrSsSinr = ssNr.ssSinr
                             }
+                            // Extract NR Cell ID and PCI
+                            if (nr.nci != Long.MAX_VALUE) cellId = nr.nci.toString()
+                            if (nr.pci != Int.MAX_VALUE) pci = nr.pci
+
                         } else if (cellInfo is CellInfoLte) {
                             val lte = cellInfo.cellIdentity
                             if (lteBandStr.isEmpty()) {
@@ -292,6 +305,10 @@ class NetworkInfoHelper @Inject constructor(
                             lteRssi = ssLte.rssi
                             
                             if (timingAdvance == null) timingAdvance = ssLte.timingAdvance
+
+                            // Extract LTE Cell ID and PCI
+                            if (lte.ci != Int.MAX_VALUE) cellId = lte.ci.toString()
+                            if (lte.pci != Int.MAX_VALUE) pci = lte.pci
                         }
                     } else {
                         if (cellInfo is CellInfoLte) {
@@ -345,7 +362,7 @@ class NetworkInfoHelper @Inject constructor(
                 signalStrength = lteRsrp
             }
 
-        } catch (e: Exception) { }
+        } catch (e: Exception) { Log.e("NetworkInfoHelper", "Error in getCurrentNetworkInfo", e) }
 
         val finalRssi = lteRssi
         val finalRsrp = if (networkType == "5G SA") nrSsRsrp else (lteRsrp ?: nrSsRsrp)
@@ -354,7 +371,7 @@ class NetworkInfoHelper @Inject constructor(
 
         val neighborStr = if (neighbors.isNotEmpty()) neighbors.joinToString(";") else null
         val state = NetworkState(
-            networkType, bandInfo, signalStrength, bandwidthStr, neighborStr, timingAdvance,
+            networkType, operatorAlphaShort, cellId, pci, bandInfo, signalStrength, bandwidthStr, neighborStr, timingAdvance,
             finalRssi, finalRsrp, finalRsrq, finalSinr
         )
         

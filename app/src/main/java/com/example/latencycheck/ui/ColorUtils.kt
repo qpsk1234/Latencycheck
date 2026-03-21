@@ -75,6 +75,7 @@ object ColorUtils {
         val cy = size / 2f
         val radius = size / 2f * 0.8f
         
+        // Drawing shapes
         when {
             networkType.contains("SA", ignoreCase = true) -> {
                 canvas.drawCircle(cx, cy, radius, paint)
@@ -106,6 +107,7 @@ object ColorUtils {
         paint.color = Color.WHITE
         paint.strokeWidth = 3f
         
+        // Drawing strokes
         when {
             networkType.contains("SA", ignoreCase = true) -> canvas.drawCircle(cx, cy, radius, paint)
             networkType.contains("NSA", ignoreCase = true) -> {
@@ -129,6 +131,29 @@ object ColorUtils {
                 path.close()
                 canvas.drawPath(path, paint)
             }
+        }
+
+        // Add text
+        val textPaint = Paint().apply {
+            this.color = Color.BLACK
+            textSize = (10 * context.resources.displayMetrics.density)
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+            isFakeBoldText = true // Make the text bold for better visibility
+        }
+
+        val textToDisplay = when {
+            networkType.contains("SA", ignoreCase = true) -> "SA"
+            networkType.contains("NSA", ignoreCase = true) -> "NSA"
+            networkType.contains("LTE", ignoreCase = true) -> "LTE"
+            else -> ""
+        }
+
+        if (textToDisplay.isNotEmpty()) {
+            val textBounds = android.graphics.Rect()
+            textPaint.getTextBounds(textToDisplay, 0, textToDisplay.length, textBounds)
+            val textY = cy + textBounds.height() / 2
+            canvas.drawText(textToDisplay, cx, textY, textPaint)
         }
         
         return BitmapDrawable(context.resources, bitmap)
