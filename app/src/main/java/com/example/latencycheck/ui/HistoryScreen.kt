@@ -8,6 +8,7 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -145,19 +146,23 @@ fun HistoryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                     is UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Success -> {
                         val records = (uiState as UiState.Success).records
-                        LazyColumn(modifier = Modifier.fillMaxSize()) {
-                            item {
-                                HeaderRow(displayColumns)
-                            }
-                            items(records) { record ->
-                                RecordRow(
-                                    record = record,
-                                    isSelected = selectedRecord?.id == record.id,
-                                    displayColumns = displayColumns,
-                                    colorConfigJson = colorConfigJson,
-                                    onClick = { selectedRecord = record }
-                                )
-                                HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), thickness = 1.dp)
+                        val horizontalScrollState = rememberScrollState()
+                        
+                        Box(modifier = Modifier.horizontalScroll(horizontalScrollState)) {
+                            LazyColumn(modifier = Modifier.width(800.dp).fillMaxHeight()) {
+                                item {
+                                    HeaderRow(displayColumns)
+                                }
+                                items(records) { record ->
+                                    RecordRow(
+                                        record = record,
+                                        isSelected = selectedRecord?.id == record.id,
+                                        displayColumns = displayColumns,
+                                        colorConfigJson = colorConfigJson,
+                                        onClick = { selectedRecord = record }
+                                    )
+                                    HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), thickness = 1.dp)
+                                }
                             }
                         }
                     }
@@ -246,17 +251,17 @@ fun HeaderRow(displayColumns: Set<String>) {
         modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant).padding(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if ("Time" in displayColumns) Text("Time", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Latency" in displayColumns) Text("Lat", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Type" in displayColumns) Text("Net", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Band" in displayColumns) Text("Band", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Signal" in displayColumns) Text("Sig", modifier = Modifier.weight(1.0f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Bandwidth" in displayColumns) Text("BW", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("RSSI" in displayColumns) Text("RSSI", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("RSRP" in displayColumns) Text("RSRP", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("RSRQ" in displayColumns) Text("RSRQ", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("SNR" in displayColumns) Text("SNR", modifier = Modifier.weight(0.8f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
-        if ("Location" in displayColumns) Text("Location", modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Time" in displayColumns) Text("Time", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Latency" in displayColumns) Text("Lat", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Type" in displayColumns) Text("Net", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Band" in displayColumns) Text("Band", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Signal" in displayColumns) Text("Sig", modifier = Modifier.width(80.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Bandwidth" in displayColumns) Text("BW", modifier = Modifier.width(60.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("RSSI" in displayColumns) Text("RSSI", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("RSRP" in displayColumns) Text("RSRP", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("RSRQ" in displayColumns) Text("RSRQ", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("SNR" in displayColumns) Text("SNR", modifier = Modifier.width(50.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
+        if ("Location" in displayColumns) Text("Location", modifier = Modifier.width(150.dp), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelSmall)
     }
 }
 
@@ -273,14 +278,14 @@ fun RecordRow(record: MeasurementRecord, isSelected: Boolean, displayColumns: Se
             if ("Time" in displayColumns) {
                 Text(
                     text = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date(record.timestamp)),
-                    modifier = Modifier.weight(1.2f),
+                    modifier = Modifier.width(80.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("Latency" in displayColumns) {
                 Text(
                     text = "${record.latencyMs}ms",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(60.dp),
                     color = Color(ColorUtils.getLatencyColor(record.latencyMs, colorConfigJson)),
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
@@ -289,14 +294,14 @@ fun RecordRow(record: MeasurementRecord, isSelected: Boolean, displayColumns: Se
             if ("Type" in displayColumns) {
                 Text(
                     text = record.networkType,
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(60.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("Band" in displayColumns) {
                 Text(
                     text = record.bandInfo,
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(80.dp),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1
                 )
@@ -304,49 +309,49 @@ fun RecordRow(record: MeasurementRecord, isSelected: Boolean, displayColumns: Se
             if ("Signal" in displayColumns) {
                 Text(
                     text = "${record.signalStrength ?: "?"} dBm",
-                    modifier = Modifier.weight(1.0f),
+                    modifier = Modifier.width(80.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("Bandwidth" in displayColumns) {
                 Text(
                     text = record.bandwidth ?: "",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(60.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("RSSI" in displayColumns) {
                 Text(
                     text = record.rssi?.toString() ?: "",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(50.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("RSRP" in displayColumns) {
                 Text(
                     text = record.rsrp?.toString() ?: "",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(50.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("RSRQ" in displayColumns) {
                 Text(
                     text = record.rsrq?.toString() ?: "",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(50.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("SNR" in displayColumns) {
                 Text(
                     text = record.sinr?.toString() ?: "",
-                    modifier = Modifier.weight(0.8f),
+                    modifier = Modifier.width(50.dp),
                     style = MaterialTheme.typography.bodySmall
                 )
             }
             if ("Location" in displayColumns) {
                 Text(
                     text = record.locationName ?: "Unknown",
-                    modifier = Modifier.weight(1.5f),
+                    modifier = Modifier.width(150.dp),
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = 1
                 )

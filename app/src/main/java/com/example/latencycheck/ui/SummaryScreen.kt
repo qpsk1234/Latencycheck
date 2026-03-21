@@ -3,9 +3,11 @@ package com.example.latencycheck.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FileDownload
@@ -83,6 +85,7 @@ fun SummaryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
     ) { innerPadding ->
         Column(
             modifier = Modifier
+                .padding(innerPadding)
                 .padding(8.dp)
                 .fillMaxSize()
         ) {
@@ -115,6 +118,12 @@ fun SummaryContent(records: List<MeasurementRecord>, colorConfigJson: String) {
         item {
             SectionHeader("Overall Statistics")
             GeneralStatsCard(records)
+        }
+
+        // 0.5. Band Usage Statistics
+        item {
+            SectionHeader("Band Usage Statistics")
+            BandUsageCard(records)
         }
 
         // 1. Station Summary
@@ -154,41 +163,52 @@ fun SectionHeader(title: String) {
 }
 
 @Composable
-fun StationStatsCard(records: List<MeasurementRecord>) {
-    val stationKeywords = listOf("駅", "Station", "空港", "Airport", "IC", "SA", "PA", "Jct")
-    val stationRecords = records.filter { record ->
-        stationKeywords.any { keyword -> record.locationName?.contains(keyword, ignoreCase = true) == true }
-    }
-    val stats = stationRecords.groupBy { it.locationName ?: "Unknown" }
-        .map { (name, group) ->
-            val avgLatency = group.map { it.latencyMs }.average()
-            val nrCount = group.count { it.networkType.contains("5G") }
-            val nrRate = (nrCount.toFloat() / group.size * 100).toInt()
-            val avgSignal = group.mapNotNull { it.signalStrength }.let { if (it.isEmpty()) null else it.average().toInt() }
-            StationStat(name, avgLatency.toInt(), nrRate, avgSignal)
-        }.sortedByDescending { it.avgLatency }
+fun BandUsageCard(records: List<MeasurementRecord>) {
+    val totalCount = records.size
+    if (totalCount == 0) return
+
+    val bandStats = records.groupBy { it.bandInfo }
+        .map { (band, group) ->
+            val count = group.size
+            val percentage = (count.toFloat() / totalCount * 100)
+            val avgLatency = group.map { it.latencyMs }.average().toInt()
+            BandStat(band, count, percentage, avgLatency)
+        }.sortedByDescending { it.count }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-                Text("Location", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelMedium)
-                Text("Lat.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                Text("5G%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                Text("Sig.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-            }
-            HorizontalDivider()
-            if (stats.isEmpty()) {
-                Text("No matching locations found.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
-            } else {
-                stats.take(20).forEach { stat ->
+            val scrollState = rememberScrollState()
+            Box(modifier = Modifier.horizontalScroll(scrollState)) {
+                Column(modifier = Modifier.width(400.dp)) {
                     Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-                        Text(stat.name, modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                        Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text("${stat.nrRate}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Text("${stat.avgSignal ?: "N/A"}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text("Band", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelMedium)
+                        Text("Count", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                        Text("Usage %", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                        Text("Avg Lat.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                    }
+                    HorizontalDivider()
+                    bandStats.forEach { stat ->
+                        Column {
+                            Row(modifier = Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stat.band, modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                                Text("${stat.count}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                Text(String.format("%.1f%%", stat.percentage), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            }
+                            LinearProgressIndicator(
+                                progress = stat.percentage / 100f,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .padding(horizontal = 4.dp),
+                                color = if (stat.band.startsWith("n")) Color(0xFF4CAF50) else Color(0xFF2196F3),
+                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     }
                 }
             }
@@ -196,7 +216,75 @@ fun StationStatsCard(records: List<MeasurementRecord>) {
     }
 }
 
-data class StationStat(val name: String, val avgLatency: Int, val nrRate: Int, val avgSignal: Int?)
+data class BandStat(val band: String, val count: Int, val percentage: Float, val avgLatency: Int)
+
+@Composable
+fun StationStatsCard(records: List<MeasurementRecord>) {
+    val stationKeywords = listOf("駅", "Station", "空港", "Airport", "IC", "SA", "PA", "Jct")
+    val stationRecords = records.filter { record ->
+        stationKeywords.any { keyword -> record.locationName?.contains(keyword, ignoreCase = true) == true }
+    }
+    val stats = stationRecords.groupBy { it.locationName ?: "Unknown" }
+        .map { (name, group) ->
+            val total = group.size
+            val avgLatency = group.map { it.latencyMs }.average()
+            val saCount = group.count { it.networkType.contains("SA") }
+            val nsaCount = group.count { it.networkType.contains("NSA") }
+            val lteCount = group.count { it.networkType.contains("LTE") }
+            
+            val saRate = (saCount.toFloat() / total * 100).toInt()
+            val nsaRate = (nsaCount.toFloat() / total * 100).toInt()
+            val lteRate = (lteCount.toFloat() / total * 100).toInt()
+            
+            val avgSignal = group.mapNotNull { it.signalStrength }.let { if (it.isEmpty()) null else it.average().toInt() }
+            StationStat(name, avgLatency.toInt(), saRate, nsaRate, lteRate, avgSignal)
+        }.sortedByDescending { it.avgLatency }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            val scrollState = rememberScrollState()
+            Box(modifier = Modifier.horizontalScroll(scrollState)) {
+                Column(modifier = Modifier.width(550.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                        Text("Location", modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.labelMedium)
+                        Text("Lat.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                        Text("SA%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, color = Color(0xFF4CAF50))
+                        Text("NSA%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, color = Color(0xFFFF9800))
+                        Text("LTE%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.labelMedium, color = Color(0xFF2196F3))
+                        Text("Sig.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                    }
+                    HorizontalDivider()
+                    if (stats.isEmpty()) {
+                        Text("No matching locations found.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
+                    } else {
+                        stats.take(20).forEach { stat ->
+                            Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                                Text(stat.name, modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                                Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                Text("${stat.saRate}%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.bodySmall)
+                                Text("${stat.nsaRate}%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.bodySmall)
+                                Text("${stat.lteRate}%", modifier = Modifier.weight(0.8f), style = MaterialTheme.typography.bodySmall)
+                                Text("${stat.avgSignal ?: "N/A"}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+data class StationStat(
+    val name: String, 
+    val avgLatency: Int, 
+    val saRate: Int, 
+    val nsaRate: Int, 
+    val lteRate: Int, 
+    val avgSignal: Int?
+)
 
 @Composable
 fun GeneralStatsCard(records: List<MeasurementRecord>) {
