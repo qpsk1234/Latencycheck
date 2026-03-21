@@ -18,12 +18,14 @@ import com.example.latencycheck.network.NetworkMonitor
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -37,6 +39,7 @@ class MeasureService : Service() {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
+    private var measureJob: Job? = null
     
     companion object {
         const val CHANNEL_ID = "MeasureServiceChannel"
@@ -53,29 +56,34 @@ class MeasureService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> {
-                Log.d("MeasureService", "Service starting")
-                
-                // Acquire WakeLock
-                val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
-                wakeLock = powerManager.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "LatencyCheck:MeasureWakeLock").apply {
-                    acquire()
-                }
-
-                startForeground(NOTIFICATION_ID, buildNotification())
-                startMeasuringLoop()
-            }
-            ACTION_STOP -> {
-                Log.d("MeasureService", "Service stopping")
-                stopSelf()
-            }
+        if (intent == null || intent.action == ACTION_START) {
+            Log.d("MeasureService", "Service starting (intent=${intent?.action ?: "null/restart"})")
+            startServiceOperations()
+        } else if (intent.action == ACTION_STOP) {
+            Log.d("MeasureService", "Service stopping")
+            stopSelf()
         }
         return START_STICKY
     }
 
+    private fun startServiceOperations() {
+        // Acquire WakeLock if not already held
+        if (wakeLock == null) {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+            wakeLock = powerManager.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "LatencyCheck:MeasureWakeLock")
+        }
+        
+        wakeLock?.let {
+            if (!it.isHeld) it.acquire()
+        }
+
+        startForeground(NOTIFICATION_ID, buildNotification())
+        startMeasuringLoop()
+    }
+
     private fun startMeasuringLoop() {
-        scope.launch {
+        measureJob?.cancel()
+        measureJob = scope.launch {
             appPreferences.setIsRunning(true)
             while (isActive) {
                 try {
@@ -97,7 +105,16 @@ class MeasureService : Service() {
 
     private suspend fun performMeasurementAndSave(url: String) {
         val latencyMs = networkMonitor.measureLatency(url)
-        val location = locationHelper.getCurrentLocation()
+        
+        // Add timeout for location retrieval to prevent hanging
+        val location = withTimeoutOrNull(10000L) {
+            locationHelper.getCurrentLocation()
+        }
+        
+        if (location == null) {
+             Log.w("MeasureService", "Location retrieval timed out or failed")
+        }
+
         val networkInfo = networkInfoHelper.getCurrentNetworkInfo()
         val locationName = location?.let { locationHelper.getLocationName(it.latitude, it.longitude) }
         
@@ -110,6 +127,10 @@ class MeasureService : Service() {
             bandwidth = networkInfo.bandwidth,
             neighborCells = null,
             timingAdvance = networkInfo.timingAdvance,
+            rssi = networkInfo.rssi,
+            rsrp = networkInfo.rsrp,
+            rsrq = networkInfo.rsrq,
+            sinr = networkInfo.sinr,
             latitude = location?.latitude ?: 0.0,
             longitude = location?.longitude ?: 0.0,
             locationName = locationName

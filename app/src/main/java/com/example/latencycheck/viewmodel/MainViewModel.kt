@@ -76,6 +76,18 @@ class MainViewModel @Inject constructor(
         false
     )
 
+    val displayColumns: StateFlow<Set<String>> = appPreferences.displayColumns.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        AppPreferences.DEFAULT_DISPLAY_COLUMNS
+    )
+
+    val mapColorMode: StateFlow<String> = appPreferences.mapColorMode.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        "latency"
+    )
+
     fun setTargetUrl(url: String) {
         viewModelScope.launch { appPreferences.setTargetUrl(url) }
     }
@@ -94,6 +106,14 @@ class MainViewModel @Inject constructor(
 
     fun setDebugEnabled(enabled: Boolean) {
         viewModelScope.launch { appPreferences.setDebugEnabled(enabled) }
+    }
+
+    fun setDisplayColumns(columns: Set<String>) {
+        viewModelScope.launch { appPreferences.setDisplayColumns(columns) }
+    }
+
+    fun setMapColorMode(mode: String) {
+        viewModelScope.launch { appPreferences.setMapColorMode(mode) }
     }
 
     fun toggleService(context: Context) {

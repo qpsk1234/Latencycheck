@@ -145,7 +145,11 @@ class NetworkInfoHelper @Inject constructor(
         val signalStrength: Int?,
         val bandwidth: String?, 
         val neighborCells: String?,
-        val timingAdvance: Int?
+        val timingAdvance: Int?,
+        val rssi: Int?,
+        val rsrp: Int?,
+        val rsrq: Int?,
+        val sinr: Int?
     )
 
     @SuppressLint("MissingPermission")
@@ -156,6 +160,15 @@ class NetworkInfoHelper @Inject constructor(
         var bandwidthStr: String? = null
         var neighbors = mutableListOf<String>()
         var timingAdvance: Int? = null
+        
+        var lteRssi: Int? = null
+        var lteRsrp: Int? = null
+        var lteRsrq: Int? = null
+        var lteRssnr: Int? = null
+        
+        var nrSsRsrp: Int? = null
+        var nrSsRsrq: Int? = null
+        var nrSsSinr: Int? = null
 
         try {
             val subId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -196,8 +209,6 @@ class NetworkInfoHelper @Inject constructor(
 
             var lteBandStr = ""
             var nrBandStr = ""
-            var lteRsrp: Int? = null
-            var nrRsrp: Int? = null
 
             val activeSubInfo = subscriptionManager.activeSubscriptionInfoList?.find { it.subscriptionId == subId }
             val targetMcc = activeSubInfo?.mccString
@@ -250,14 +261,20 @@ class NetworkInfoHelper @Inject constructor(
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr) {
                             val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
                             if (nrBandStr.isEmpty()) {
-                                nrBandStr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
+                                val derivedBand = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
+                                nrBandStr = if (derivedBand.isNotEmpty() && !derivedBand.startsWith("NRARFCN")) {
+                                    derivedBand
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
                                     "n" + nr.bands.first()
                                 } else {
-                                    getNrBandFromArfcn(nr.nrarfcn) // ★ 修正箇所
+                                    derivedBand
                                 }
                             }
                             if (cellInfo.cellSignalStrength is android.telephony.CellSignalStrengthNr) {
-                                nrRsrp = (cellInfo.cellSignalStrength as android.telephony.CellSignalStrengthNr).ssRsrp
+                                val ssNr = cellInfo.cellSignalStrength as android.telephony.CellSignalStrengthNr
+                                nrSsRsrp = ssNr.ssRsrp
+                                nrSsRsrq = ssNr.ssRsrq
+                                nrSsSinr = ssNr.ssSinr
                             }
                         } else if (cellInfo is CellInfoLte) {
                             val lte = cellInfo.cellIdentity
@@ -268,8 +285,13 @@ class NetworkInfoHelper @Inject constructor(
                                     "EARFCN: ${lte.earfcn}"
                                 }
                             }
-                            lteRsrp = cellInfo.cellSignalStrength.rsrp
-                            if (timingAdvance == null) timingAdvance = cellInfo.cellSignalStrength.timingAdvance
+                            val ssLte = cellInfo.cellSignalStrength
+                            lteRsrp = ssLte.rsrp
+                            lteRsrq = ssLte.rsrq
+                            lteRssnr = ssLte.rssnr
+                            lteRssi = ssLte.rssi
+                            
+                            if (timingAdvance == null) timingAdvance = ssLte.timingAdvance
                         }
                     } else {
                         if (cellInfo is CellInfoLte) {
@@ -282,17 +304,20 @@ class NetworkInfoHelper @Inject constructor(
                             val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
                             
                             if (nrBandStr.isEmpty()) {
-                                nrBandStr = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
+                                val derivedBand = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
+                                nrBandStr = if (derivedBand.isNotEmpty() && !derivedBand.startsWith("NRARFCN")) {
+                                    derivedBand
+                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
                                     "n" + nr.bands.first()
                                 } else {
-                                    getNrBandFromArfcn(nr.nrarfcn) // ★ 修正箇所
+                                    derivedBand
                                 }
                             }
                             
                             val rsrp = if (cellInfo.cellSignalStrength is android.telephony.CellSignalStrengthNr) {
                                 (cellInfo.cellSignalStrength as android.telephony.CellSignalStrengthNr).ssRsrp
                             } else "?"
-                            neighbors.add("${getNrBandFromArfcn(nr.nrarfcn)}/${nr.pci}($rsrp)") // ★ 修正箇所
+                            neighbors.add("${getNrBandFromArfcn(nr.nrarfcn)}/${nr.pci}($rsrp)")
                         }
                     }
                 }
@@ -311,10 +336,10 @@ class NetworkInfoHelper @Inject constructor(
             if (networkType == "5G NSA") {
                 bandInfo = listOf(lteBandStr, nrBandStr).filter { it.isNotEmpty() }.joinToString("+")
                 if (bandInfo.isEmpty()) bandInfo = "N/A"
-                signalStrength = lteRsrp ?: nrRsrp
+                signalStrength = lteRsrp ?: nrSsRsrp
             } else if (networkType == "5G SA") {
                 bandInfo = if (nrBandStr.isNotEmpty()) nrBandStr else "N/A"
-                signalStrength = nrRsrp
+                signalStrength = nrSsRsrp
             } else {
                 bandInfo = if (lteBandStr.isNotEmpty()) lteBandStr else "N/A"
                 signalStrength = lteRsrp
@@ -322,8 +347,16 @@ class NetworkInfoHelper @Inject constructor(
 
         } catch (e: Exception) { }
 
+        val finalRssi = lteRssi
+        val finalRsrp = if (networkType == "5G SA") nrSsRsrp else (lteRsrp ?: nrSsRsrp)
+        val finalRsrq = if (networkType == "5G SA") nrSsRsrq else (lteRsrq ?: nrSsRsrq)
+        val finalSinr = if (networkType == "5G SA") nrSsSinr else (lteRssnr ?: nrSsSinr)
+
         val neighborStr = if (neighbors.isNotEmpty()) neighbors.joinToString(";") else null
-        val state = NetworkState(networkType, bandInfo, signalStrength, bandwidthStr, neighborStr, timingAdvance)
+        val state = NetworkState(
+            networkType, bandInfo, signalStrength, bandwidthStr, neighborStr, timingAdvance,
+            finalRssi, finalRsrp, finalRsrq, finalSinr
+        )
         
         if (isDebugEnabled) {
             Log.d("NetworkInfoHelper", "getCurrentNetworkInfo: result=$state")
@@ -345,7 +378,7 @@ class NetworkInfoHelper @Inject constructor(
             in 499200..537999 -> "n41" // 2.5 GHz
             in 620000..680000 -> "n77/n78" // 3.4 - 3.8 GHz (日本の主要Sub6)
             in 680001..693333 -> "n77" // 3.8 - 4.2 GHz
-            in 693334..719999 -> "n77/n79" // n79と重なる帯域
+            in 693334..719999 -> "n79" // n79と重なる帯域
             in 720000..733333 -> "n79" // 4.5 GHz
             in 2054166..2104165 -> "n257" // 28 GHz (ミリ波)
             else -> "NRARFCN:$nrarfcn" // 未知の帯域の場合はそのまま出力

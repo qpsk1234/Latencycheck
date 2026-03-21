@@ -14,6 +14,10 @@ data class MeasurementRecord(
     val bandwidth: String?,
     val neighborCells: String?,
     val timingAdvance: Int?,
+    val rssi: Int? = null,
+    val rsrp: Int? = null,
+    val rsrq: Int? = null,
+    val sinr: Int? = null,
     val latitude: Double,
     val longitude: Double,
     val locationName: String?

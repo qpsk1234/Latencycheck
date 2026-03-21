@@ -19,9 +19,9 @@ Jetpack Compose を使用した画面構成です。
 *   **MainViewModel.kt**: UIの状態管理、設定情報の保持、CSVのインポート/エクスポート処理、バックグラウンドサービスの開始/停止指示を行います。
 
 ### Service 層 (`com.example.latencycheck.service`)
-*   **MeasureService.kt**: フォアグラウンドサービス。アプリがバックグラウンドにいても定期的に計測ループを実行し、データベースに保存します。
-*   **NetworkInfoHelper.kt**: 接続中のネットワーク種別（LTE/5G）、バンド、RSRP（電波強度）、帯域幅、近隣セル、タイミングアドバンス(TA)などの詳細情報を取得します。
-*   **LocationHelper.kt**: GPSを用いた位置情報の取得と、緯度経度から場所名（逆ジオコーディング）を取得します。
+*   **MeasureService.kt**: フォアグラウンドサービス。`WakeLock` を使用してバックグラウンド・スリープ中も計測ループを維持し、データを Room データベースに保存します。
+*   **NetworkInfoHelper.kt**: `TelephonyCallback` 等を利用し、5G SA/NSA の判別、物理チャンネル設定（CA状態）の監視、NRARFCN からの 5G バンド名変換、RSRP、帯域幅、近隣セル、タイミングアドバンス(TA)などの詳細情報を取得します。
+*   **LocationHelper.kt**: `FusedLocationProviderClient` を用いた高精度な位置情報の取得と、逆ジオコーディングによる場所名（駅名やランドマーク優先）の取得を行います。
 
 ### Network 層 (`com.example.latencycheck.network`)
 *   **NetworkMonitor.kt**: 指定されたURLに対して実際に通信を行い、レイテンシ（ミリ秒）を測定します。

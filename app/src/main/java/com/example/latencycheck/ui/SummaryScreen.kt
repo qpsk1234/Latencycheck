@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +52,9 @@ fun SummaryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let { viewModel.importFromCsv(context, it) { msg -> /* Show snackbar if needed */ } }
+        uri?.let { viewModel.importFromCsv(context, it) { msg -> 
+             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+        } }
     }
 
     Scaffold(
@@ -64,6 +67,13 @@ fun SummaryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                     }
                 },
                 actions = {
+                    IconButton(onClick = { 
+                        viewModel.exportToCsv(context) { msg ->
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "Export CSV")
+                    }
                     IconButton(onClick = { importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv")) }) {
                         Icon(Icons.Default.FileOpen, contentDescription = "Import CSV")
                     }
@@ -109,7 +119,7 @@ fun SummaryContent(records: List<MeasurementRecord>, colorConfigJson: String) {
 
         // 1. Station Summary
         item {
-            SectionHeader("Station Statistics (Locations with '駅')")
+            SectionHeader("Point of Interest Statistics")
             StationStatsCard(records)
         }
 
@@ -145,7 +155,10 @@ fun SectionHeader(title: String) {
 
 @Composable
 fun StationStatsCard(records: List<MeasurementRecord>) {
-    val stationRecords = records.filter { it.locationName?.contains("駅") == true }
+    val stationKeywords = listOf("駅", "Station", "空港", "Airport", "IC", "SA", "PA", "Jct")
+    val stationRecords = records.filter { record ->
+        stationKeywords.any { keyword -> record.locationName?.contains(keyword, ignoreCase = true) == true }
+    }
     val stats = stationRecords.groupBy { it.locationName ?: "Unknown" }
         .map { (name, group) ->
             val avgLatency = group.map { it.latencyMs }.average()
@@ -161,18 +174,22 @@ fun StationStatsCard(records: List<MeasurementRecord>) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-                Text("Station", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelMedium)
+                Text("Location", modifier = Modifier.weight(2f), style = MaterialTheme.typography.labelMedium)
                 Text("Lat.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 Text("5G%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
                 Text("Sig.", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
             }
             HorizontalDivider()
-            stats.take(10).forEach { stat ->
-                Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-                    Text(stat.name, modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                    Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("${stat.nrRate}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    Text("${stat.avgSignal ?: "N/A"}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            if (stats.isEmpty()) {
+                Text("No matching locations found.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
+            } else {
+                stats.take(20).forEach { stat ->
+                    Row(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                        Text(stat.name, modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                        Text("${stat.avgLatency}ms", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text("${stat.nrRate}%", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        Text("${stat.avgSignal ?: "N/A"}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         }

@@ -15,6 +15,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.latencycheck.ui.MainScreen
 import com.example.latencycheck.ui.SettingsScreen
 import com.example.latencycheck.ui.HistoryScreen
+import com.example.latencycheck.ui.MapScreen
 import com.example.latencycheck.ui.ColorSettingsScreen
 import com.example.latencycheck.ui.SummaryScreen
 import com.example.latencycheck.ui.theme.LatencycheckTheme
@@ -49,11 +50,18 @@ fun AppNavigation() {
                 viewModel = viewModel,
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToHistory = { navController.navigate("history") },
-                onNavigateToSummary = { navController.navigate("summary") }
+                onNavigateToSummary = { navController.navigate("summary") },
+                onNavigateToMap = { navController.navigate("map") }
             )
         }
         composable("history") {
             HistoryScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable("map") {
+            MapScreen(
                 viewModel = viewModel,
                 onNavigateBack = { navController.popBackStack() }
             )

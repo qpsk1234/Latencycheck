@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
@@ -26,7 +27,11 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
         val MAX_LATENCY_THRESHOLD_KEY = longPreferencesKey("max_latency_threshold")
         val COLOR_CONFIG_JSON_KEY = stringPreferencesKey("color_config_json")
         val DEBUG_ENABLED_KEY = booleanPreferencesKey("debug_enabled")
+        val DISPLAY_COLUMNS_KEY = stringSetPreferencesKey("display_columns")
+        val MAP_COLOR_MODE_KEY = stringPreferencesKey("map_color_mode")
         
+        val DEFAULT_DISPLAY_COLUMNS = setOf("Time", "Latency", "Type", "Band", "Signal", "Location")
+
         const val DEFAULT_COLOR_CONFIG = """
             [
                 {"threshold": 100, "color": "#4CAF50"},
@@ -67,6 +72,14 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
         preferences[DEBUG_ENABLED_KEY] ?: false
     }
 
+    val displayColumns: Flow<Set<String>> = context.dataStore.data.map { preferences ->
+        preferences[DISPLAY_COLUMNS_KEY] ?: DEFAULT_DISPLAY_COLUMNS
+    }
+
+    val mapColorMode: Flow<String> = context.dataStore.data.map { preferences ->
+        preferences[MAP_COLOR_MODE_KEY] ?: "latency"
+    }
+
     suspend fun setTargetUrl(url: String) {
         context.dataStore.edit { preferences ->
             preferences[TARGET_URL_KEY] = url
@@ -100,6 +113,18 @@ class AppPreferences @Inject constructor(@ApplicationContext private val context
     suspend fun setDebugEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[DEBUG_ENABLED_KEY] = enabled
+        }
+    }
+
+    suspend fun setDisplayColumns(columns: Set<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[DISPLAY_COLUMNS_KEY] = columns
+        }
+    }
+
+    suspend fun setMapColorMode(mode: String) {
+        context.dataStore.edit { preferences ->
+            preferences[MAP_COLOR_MODE_KEY] = mode
         }
     }
 }
