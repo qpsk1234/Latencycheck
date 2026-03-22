@@ -27,3 +27,12 @@ CLAUDE.md
 /brain
 /tmp
 /*.csv
+
+# Gradle distribution (should be downloaded by wrapper)
+/gradle-8.7/
+/gradle-*/
+
+# Development artifacts
+deps.txt
+detailed_design.md
+.agent/
