@@ -18,12 +18,19 @@ import com.example.latencycheck.ui.HistoryScreen
 import com.example.latencycheck.ui.MapScreen
 import com.example.latencycheck.ui.ColorSettingsScreen
 import com.example.latencycheck.ui.SummaryScreen
+import com.example.latencycheck.ui.DebugScreen
 import com.example.latencycheck.ui.theme.LatencycheckTheme
 import com.example.latencycheck.viewmodel.MainViewModel
+import com.example.latencycheck.service.NetworkInfoHelper
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject
+    lateinit var networkInfoHelper: NetworkInfoHelper
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -32,7 +39,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    AppNavigation()
+                    AppNavigation(networkInfoHelper = networkInfoHelper)
                 }
             }
         }
@@ -40,7 +47,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(networkInfoHelper: NetworkInfoHelper) {
     val navController = rememberNavController()
     val viewModel: MainViewModel = hiltViewModel()
 
@@ -51,7 +58,8 @@ fun AppNavigation() {
                 onNavigateToSettings = { navController.navigate("settings") },
                 onNavigateToHistory = { navController.navigate("history") },
                 onNavigateToSummary = { navController.navigate("summary") },
-                onNavigateToMap = { navController.navigate("map") }
+                onNavigateToMap = { navController.navigate("map") },
+                onNavigateToDebug = { navController.navigate("debug") }
             )
         }
         composable("history") {
@@ -82,6 +90,12 @@ fun AppNavigation() {
         composable("color_settings") {
             ColorSettingsScreen(
                 viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable("debug") {
+            DebugScreen(
+                networkInfoHelper = networkInfoHelper,
                 onNavigateBack = { navController.popBackStack() }
             )
         }

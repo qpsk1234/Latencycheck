@@ -146,13 +146,47 @@ class NetworkInfoHelper @Inject constructor(
         val pci: Int?,
         val band: String,
         val signalStrength: Int?,
-        val bandwidth: String?, 
+        val bandwidth: String?,
         val neighborCells: String?,
         val timingAdvance: Int?,
         val rssi: Int?,
         val rsrp: Int?,
         val rsrq: Int?,
         val sinr: Int?
+    )
+
+    data class DebugInfo(
+        // TelephonyDisplayInfo
+        val telephonyDisplayInfo: String?,
+        val overrideNetworkType: String?,
+        // TelephonyManager basic info
+        val networkType: String,
+        val dataNetworkType: String,
+        val voiceNetworkType: String,
+        // Operator info
+        val operatorName: String?,
+        val operatorAlphaShort: String?,
+        val operatorAlphaLong: String?,
+        val operatorNumeric: String?,
+        // Device/Subscription info
+        val deviceId: String?,
+        val subscriberId: String?,
+        val simOperatorName: String?,
+        // ServiceState raw
+        val serviceStateRaw: String?,
+        // SignalStrength raw
+        val signalStrengthRaw: String?,
+        // CellInfo raw (detailed)
+        val cellInfoList: List<String>,
+        // Physical Channel Config
+        val physicalChannelConfig: String?,
+        // Data connection state
+        val dataState: String,
+        val dataActivity: String,
+        // Call state
+        val callState: String,
+        // All properties map for extensibility
+        val allTelephonyProperties: Map<String, String>
     )
 
     @SuppressLint("MissingPermission")
@@ -380,6 +414,158 @@ class NetworkInfoHelper @Inject constructor(
             dumpRawTelephonyInfo("getCurrentNetworkInfo")
         }
         return state
+    }
+
+    @SuppressLint("MissingPermission")
+    fun getDebugInfo(): DebugInfo {
+        val telephonyDisplayInfo: String? = null // Updated via callback, stored separately if needed
+        val allProps = mutableMapOf<String, String>()
+
+        // Basic TelephonyManager info
+        val networkType = try {
+            telephonyManager.networkType.let {
+                when (it) {
+                    TelephonyManager.NETWORK_TYPE_NR -> "NR (5G)"
+                    TelephonyManager.NETWORK_TYPE_LTE -> "LTE"
+                    TelephonyManager.NETWORK_TYPE_UMTS -> "UMTS"
+                    TelephonyManager.NETWORK_TYPE_HSDPA -> "HSDPA"
+                    TelephonyManager.NETWORK_TYPE_HSUPA -> "HSUPA"
+                    TelephonyManager.NETWORK_TYPE_HSPA -> "HSPA"
+                    else -> "UNKNOWN ($it)"
+                }
+            }
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        val dataNetworkType = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                telephonyManager.dataNetworkType.let {
+                    when (it) {
+                        TelephonyManager.NETWORK_TYPE_NR -> "NR (5G)"
+                        TelephonyManager.NETWORK_TYPE_LTE -> "LTE"
+                        else -> "Type: $it"
+                    }
+                }
+            } else "N/A (API < 30)"
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        val voiceNetworkType = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                telephonyManager.voiceNetworkType.toString()
+            } else "N/A (API < 30)"
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        // Operator info
+        val operatorName = try { telephonyManager.networkOperatorName } catch (e: Exception) { null }
+        val operatorAlphaShort = try { telephonyManager.serviceState?.operatorAlphaShort } catch (e: Exception) { null }
+        val operatorAlphaLong = try { telephonyManager.serviceState?.operatorAlphaLong } catch (e: Exception) { null }
+        val operatorNumeric = try { telephonyManager.serviceState?.operatorNumeric } catch (e: Exception) { null }
+
+        // Device/Subscription
+        val deviceId = try { telephonyManager.deviceId } catch (e: Exception) { null }
+        val subscriberId = try { telephonyManager.subscriberId } catch (e: Exception) { null }
+        val simOperatorName = try { telephonyManager.simOperatorName } catch (e: Exception) { null }
+
+        // ServiceState
+        val serviceStateRaw = try {
+            telephonyManager.serviceState?.toString()
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        // SignalStrength
+        val signalStrengthRaw = try {
+            telephonyManager.signalStrength?.toString()
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        // CellInfo list
+        val cellInfoList = try {
+            telephonyManager.allCellInfo?.mapNotNull { cellInfo ->
+                try {
+                    when (cellInfo) {
+                        is CellInfoLte -> {
+                            val id = cellInfo.cellIdentity
+                            val ss = cellInfo.cellSignalStrength
+                            "LTE [EARFCN:${id.earfcn}, PCI:${id.pci}, CellID:${id.ci}, TAC:${id.tac}, RSRP:${ss.rsrp}, RSRQ:${ss.rsrq}, RSSI:${ss.rssi}, TA:${ss.timingAdvance}, Registered:${cellInfo.isRegistered}]"
+                        }
+                        is CellInfoNr -> {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                val id = cellInfo.cellIdentity as android.telephony.CellIdentityNr
+                                val ss = cellInfo.cellSignalStrength as? android.telephony.CellSignalStrengthNr
+                                val bands = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) id.bands.contentToString() else "N/A"
+                                "NR [NRARFCN:${id.nrarfcn}, PCI:${id.pci}, NCI:${id.nci}, TAC:${id.tac}, Bands:$bands, SS-RSRP:${ss?.ssRsrp}, SS-RSRQ:${ss?.ssRsrq}, SS-SINR:${ss?.ssSinr}, Registered:${cellInfo.isRegistered}]"
+                            } else null
+                        }
+                        else -> "${cellInfo.javaClass.simpleName}: ${cellInfo.toString().take(200)}"
+                    }
+                } catch (e: Exception) { "Error parsing cell: ${e.message}" }
+            } ?: listOf("No cell info available")
+        } catch (e: Exception) { listOf("Error: ${e.message}") }
+
+        // Data state and activity
+        val dataState = try {
+            when (telephonyManager.dataState) {
+                TelephonyManager.DATA_CONNECTED -> "CONNECTED"
+                TelephonyManager.DATA_CONNECTING -> "CONNECTING"
+                TelephonyManager.DATA_DISCONNECTED -> "DISCONNECTED"
+                TelephonyManager.DATA_SUSPENDED -> "SUSPENDED"
+                else -> "UNKNOWN"
+            }
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        val dataActivity = try {
+            when (telephonyManager.dataActivity) {
+                TelephonyManager.DATA_ACTIVITY_IN -> "IN"
+                TelephonyManager.DATA_ACTIVITY_OUT -> "OUT"
+                TelephonyManager.DATA_ACTIVITY_INOUT -> "INOUT"
+                TelephonyManager.DATA_ACTIVITY_NONE -> "NONE"
+                else -> "UNKNOWN"
+            }
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        val callState = try {
+            when (telephonyManager.callState) {
+                TelephonyManager.CALL_STATE_IDLE -> "IDLE"
+                TelephonyManager.CALL_STATE_RINGING -> "RINGING"
+                TelephonyManager.CALL_STATE_OFFHOOK -> "OFFHOOK"
+                else -> "UNKNOWN"
+            }
+        } catch (e: Exception) { "Error: ${e.message}" }
+
+        // Collect additional properties
+        try {
+            telephonyManager.javaClass.methods
+                .filter { it.name.startsWith("get") && it.parameterTypes.isEmpty() }
+                .sortedBy { it.name }
+                .forEach { method ->
+                    try {
+                        val value = method.invoke(telephonyManager)?.toString() ?: "null"
+                        if (value.length < 500) { // Skip very long strings
+                            allProps[method.name] = value
+                        }
+                    } catch (e: Exception) { /* skip */ }
+                }
+        } catch (e: Exception) { /* ignore */ }
+
+        return DebugInfo(
+            telephonyDisplayInfo = telephonyDisplayInfo,
+            overrideNetworkType = currentNrType,
+            networkType = networkType,
+            dataNetworkType = dataNetworkType,
+            voiceNetworkType = voiceNetworkType,
+            operatorName = operatorName,
+            operatorAlphaShort = operatorAlphaShort,
+            operatorAlphaLong = operatorAlphaLong,
+            operatorNumeric = operatorNumeric,
+            deviceId = deviceId,
+            subscriberId = subscriberId,
+            simOperatorName = simOperatorName,
+            serviceStateRaw = serviceStateRaw,
+            signalStrengthRaw = signalStrengthRaw,
+            cellInfoList = cellInfoList,
+            physicalChannelConfig = latestPhyChConfigs,
+            dataState = dataState,
+            dataActivity = dataActivity,
+            callState = callState,
+            allTelephonyProperties = allProps
+        )
     }
 
     // ★ 新規追加: 3GPP仕様に基づく NRARFCN → バンド変換関数
