@@ -1,7 +1,74 @@
-# プロジェクト構成とファイル役割
+# Latency Check
 
-## 1. プロジェクト概要
-ネットワークのレイテンシ（応答速度）を定期的に計測し、その際の通信環境（基地局情報、電波強度など）と位置情報を記録・可視化するためのツールです。バックグラウンドでの計測、マップ表示、履歴管理、CSVエクスポートなどの機能を備えています。
+ネットワークのレイテンシ（応答速度）を定期的に計測し、その際の通信環境（基地局情報、電波強度など）と位置情報を記録・可視化するためのAndroidアプリです。バックグラウンドでの計測、マップ表示、履歴管理、CSVエクスポートなどの機能を備えています。
+
+## ビルド手順
+
+### 必要な環境
+
+- Android Studio（最新版推奨）
+- Android SDK（API 24以上）
+- JDK 17以上
+
+### リポジトリのクローン
+
+```bash
+git clone <repository-url>
+cd Latencycheck
+```
+
+### ビルド方法
+
+#### デバッグAPKのビルド
+
+```bash
+./gradlew assembleDebug
+```
+
+ビルド成功後、`app/build/outputs/apk/debug/app-debug.apk` が生成されます。
+
+#### リリースAPKのビルド
+
+```bash
+./gradlew assembleRelease
+```
+
+#### App Bundle（AAB）のビルド
+
+```bash
+./gradlew bundleRelease
+```
+
+#### インストール（接続したデバイス/エミュレーターに直接）
+
+```bash
+./gradlew installDebug
+```
+
+### トラブルシューティング
+
+#### Gradleのクリーン
+
+ビルドエラーが発生した場合：
+
+```bash
+./gradlew clean
+./gradlew cleanBuildCache
+./gradlew assembleDebug
+```
+
+#### パーミッションの付与（Android 6.0以上）
+
+初回起動時に以下のパーミッションを許可してください：
+- インターネット（計測用）
+- 位置情報（計測地点の記録）
+- 電話状態（基地局情報取得）
+
+---
+
+## プロジェクト構成とファイル役割
+
+### 1. プロジェクト概要
 
 ## 2. ディレクトリ・ファイル構成と役割
 
