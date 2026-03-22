@@ -65,36 +65,53 @@ class LocationHelper @Inject constructor(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 suspendCancellableCoroutine { continuation ->
                     geocoder.getFromLocation(latitude, longitude, 5) { addresses ->
-                        // Use full street address
-                        val address = addresses.firstOrNull()
-                        val name = buildAddressString(address)
+                        val name = buildLocationString(addresses)
                         continuation.resume(name)
                     }
                 }
             } else {
                 @Suppress("DEPRECATION")
                 val addresses = geocoder.getFromLocation(latitude, longitude, 5)
-                val address = addresses?.firstOrNull()
-                buildAddressString(address)
+                buildLocationString(addresses ?: emptyList())
             }
         } catch (e: Exception) {
             null
         }
     }
 
-    private fun buildAddressString(address: android.location.Address?): String? {
-        if (address == null) return null
-        // Build full address: locality + subLocality + thoroughfare + featureName
+    private fun buildLocationString(addresses: List<android.location.Address>): String? {
+        if (addresses.isEmpty()) return null
+
+        // First, look for station name (駅 or Station)
+        val stationAddress = addresses.firstOrNull { address ->
+            address.featureName?.let { name ->
+                name.contains("駅") || name.contains("Station", ignoreCase = true)
+            } == true
+        }
+
+        // If found, return station name with locality
+        stationAddress?.let { station ->
+            val stationName = station.featureName
+            val locality = station.locality
+            return if (locality != null && stationName != null) {
+                "$locality $stationName"
+            } else {
+                stationName
+            }
+        }
+
+        // Otherwise, build full address from first address
+        val address = addresses.firstOrNull() ?: return null
         val parts = mutableListOf<String>()
         address.locality?.let { parts.add(it) }
         address.subLocality?.let { parts.add(it) }
         address.thoroughfare?.let { parts.add(it) }
         address.subThoroughfare?.let { parts.add(it) }
-        // Fallback to featureName if no other parts
-        if (parts.isEmpty() && address.featureName != null) {
-            parts.add(address.featureName)
+
+        return if (parts.isNotEmpty()) {
+            parts.joinToString(" ")
+        } else {
+            address.getAddressLine(0)
         }
-        return parts.joinToString(" ").takeIf { it.isNotEmpty() }
-            ?: address.getAddressLine(0)
     }
 }
