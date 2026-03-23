@@ -3,8 +3,7 @@ package com.example.latencycheck.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
@@ -152,24 +151,26 @@ fun DebugScreen(
             // Signal Strength Raw
             item {
                 DebugSection(title = "Signal Strength (Raw)") {
-                    Text(
-                        debugInfo.signalStrengthRaw ?: "N/A",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.verticalScroll(rememberScrollState())
-                    )
+                    SelectionContainer {
+                        Text(
+                            debugInfo.signalStrengthRaw ?: "N/A",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
 
             // Service State Raw
             item {
                 DebugSection(title = "Service State (Raw)") {
-                    Text(
-                        debugInfo.serviceStateRaw ?: "N/A",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.verticalScroll(rememberScrollState())
-                    )
+                    SelectionContainer {
+                        Text(
+                            debugInfo.serviceStateRaw ?: "N/A",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
 
