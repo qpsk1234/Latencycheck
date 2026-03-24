@@ -102,7 +102,8 @@ fun HistoryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                     modifier = Modifier.fillMaxSize(),
                     update = { view ->
                         if (uiState is UiState.Success) {
-                            val records = (uiState as UiState.Success).records
+                            // Filter to show only registered cells (data SIM in use)
+                            val records = (uiState as UiState.Success).records.filter { it.isRegistered }
                             view.overlays.clear()
                             records.forEach { record ->
                                 val marker = Marker(view)
@@ -145,7 +146,8 @@ fun HistoryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                 when (uiState) {
                     is UiState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
                     is UiState.Success -> {
-                        val records = (uiState as UiState.Success).records
+                        // Filter to show only registered cells (data SIM in use)
+                        val records = (uiState as UiState.Success).records.filter { it.isRegistered }
                         val horizontalScrollState = rememberScrollState()
                         
                         Box(modifier = Modifier.horizontalScroll(horizontalScrollState)) {

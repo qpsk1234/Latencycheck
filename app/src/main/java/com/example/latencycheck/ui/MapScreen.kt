@@ -86,7 +86,8 @@ fun MapScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                 modifier = Modifier.fillMaxSize(),
                 update = { view ->
                     if (uiState is UiState.Success) {
-                        val records = (uiState as UiState.Success).records
+                        // Filter to show only registered cells (data SIM in use)
+                        val records = (uiState as UiState.Success).records.filter { it.isRegistered }
                         view.overlays.clear()
                         
                         records.forEach { record ->

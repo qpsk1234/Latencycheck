@@ -322,14 +322,8 @@ class NetworkInfoHelper @Inject constructor(
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr) {
                             val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
                             if (nrBandStr.isEmpty()) {
-                                val derivedBand = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
-                                nrBandStr = if (derivedBand.isNotEmpty() && !derivedBand.startsWith("NRARFCN")) {
-                                    derivedBand
-                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
-                                    "n" + nr.bands.first()
-                                } else {
-                                    derivedBand
-                                }
+                                // Always use NRARFCN-derived band (CellInfo bands can be wrong)
+                                nrBandStr = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
                             }
                             if (cellInfo.cellSignalStrength is android.telephony.CellSignalStrengthNr) {
                                 val ssNr = cellInfo.cellSignalStrength as android.telephony.CellSignalStrengthNr
@@ -373,14 +367,8 @@ class NetworkInfoHelper @Inject constructor(
                             val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
                             
                             if (nrBandStr.isEmpty()) {
-                                val derivedBand = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
-                                nrBandStr = if (derivedBand.isNotEmpty() && !derivedBand.startsWith("NRARFCN")) {
-                                    derivedBand
-                                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
-                                    "n" + nr.bands.first()
-                                } else {
-                                    derivedBand
-                                }
+                                // Always use NRARFCN-derived band (CellInfo bands can be wrong)
+                                nrBandStr = if (nr.nrarfcn != Int.MAX_VALUE) getNrBandFromArfcn(nr.nrarfcn) else ""
                             }
                             
                             val rsrp = if (cellInfo.cellSignalStrength is android.telephony.CellSignalStrengthNr) {
@@ -480,12 +468,9 @@ class NetworkInfoHelper @Inject constructor(
                                 val ssNr = cellInfo.cellSignalStrength as? android.telephony.CellSignalStrengthNr
 
                                 // Determine band number and ARFCN
+                                // Always calculate NR band from NRARFCN (CellInfo bands can be wrong)
                                 val arfcn = if (nr.nrarfcn != Int.MAX_VALUE) nr.nrarfcn else null
-                                val bandNumber = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
-                                    "n${nr.bands.first()}"
-                                } else {
-                                    arfcn?.let { getNrBandFromArfcn(it) } ?: "N/A"
-                                }
+                                val bandNumber = arfcn?.let { getNrBandFromArfcn(it) } ?: "N/A"
 
                                 allCellData.add(CellData(
                                     subscriptionId = subId,

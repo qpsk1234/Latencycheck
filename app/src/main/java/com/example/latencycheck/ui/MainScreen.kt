@@ -177,7 +177,8 @@ fun MainScreen(
             
             // Real-time Chart
             if (uiState is UiState.Success) {
-                val records = (uiState as UiState.Success).records.take(1000).reversed()
+                // Filter to show only registered cells (data SIM in use)
+                val records = (uiState as UiState.Success).records.filter { it.isRegistered }.take(1000).reversed()
                 if (records.isNotEmpty()) {
                     Text(
                         text = "Latency Trend (Last 1000)",

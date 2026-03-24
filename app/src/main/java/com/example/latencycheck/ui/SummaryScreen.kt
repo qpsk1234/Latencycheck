@@ -93,7 +93,8 @@ fun SummaryScreen(viewModel: MainViewModel, onNavigateBack: () -> Unit) {
                 is UiState.Loading -> CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
                 is UiState.Error -> Text("Error loading data", color = MaterialTheme.colorScheme.error)
                 is UiState.Success -> {
-                    val records = (uiState as UiState.Success).records
+                    // Filter to show only registered cells (data SIM in use)
+                    val records = (uiState as UiState.Success).records.filter { it.isRegistered }
                     if (records.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("No data available. Record some data or import CSV.")
