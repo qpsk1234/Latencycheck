@@ -54,15 +54,15 @@ object ColorUtils {
 
     fun getNetworkTypeColor(type: String): Int {
         return when {
-            type.contains("SA", ignoreCase = true) -> Color.parseColor("#4CAF50")
-            type.contains("NSA", ignoreCase = true) -> Color.parseColor("#FF9800")
+            type.contains("NSA", ignoreCase = true) -> Color.parseColor("#FF9800")  // NSA first
+            type.contains("SA", ignoreCase = true) -> Color.parseColor("#4CAF50")   // Then SA
             type.contains("LTE", ignoreCase = true) -> Color.parseColor("#2196F3")
             else -> Color.parseColor("#9E9E9E")
         }
     }
 
     fun createCustomMarker(context: Context, networkType: String, color: Int): Drawable {
-        val size = (24 * context.resources.displayMetrics.density).toInt()
+        val size = (36 * context.resources.displayMetrics.density).toInt()
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val paint = Paint().apply {
@@ -75,24 +75,28 @@ object ColorUtils {
         val cy = size / 2f
         val radius = size / 2f * 0.8f
         
-        // Drawing shapes
+        // Drawing shapes - Check NSA first to avoid matching "SA" part of "NSA"
         when {
+            networkType.contains("NSA", ignoreCase = true) -> {
+                // Triangle for NSA
+                val path = Path()
+                path.moveTo(cx, cy - radius)
+                path.lineTo(cx + radius, cy + radius)
+                path.lineTo(cx - radius, cy + radius)
+                path.close()
+                canvas.drawPath(path, paint)
+            }
             networkType.contains("SA", ignoreCase = true) -> {
+                // Circle for SA
                 canvas.drawCircle(cx, cy, radius, paint)
             }
-            networkType.contains("NSA", ignoreCase = true) -> {
-                val path = Path()
-                path.moveTo(cx, cy - radius)
-                path.lineTo(cx + radius, cy + radius)
-                path.lineTo(cx - radius, cy + radius)
-                path.close()
-                canvas.drawPath(path, paint)
-            }
             networkType.contains("LTE", ignoreCase = true) -> {
+                // Square for LTE
                 val side = radius * 1.5f
                 canvas.drawRect(cx - side/2, cy - side/2, cx + side/2, cy + side/2, paint)
             }
             else -> {
+                // Diamond for others
                 val path = Path()
                 path.moveTo(cx, cy - radius)
                 path.lineTo(cx + radius, cy)
@@ -102,14 +106,13 @@ object ColorUtils {
                 canvas.drawPath(path, paint)
             }
         }
-        
+
         paint.style = Paint.Style.STROKE
         paint.color = Color.WHITE
-        paint.strokeWidth = 3f
-        
-        // Drawing strokes
+        paint.strokeWidth = 4f
+
+        // Drawing strokes - Check NSA first
         when {
-            networkType.contains("SA", ignoreCase = true) -> canvas.drawCircle(cx, cy, radius, paint)
             networkType.contains("NSA", ignoreCase = true) -> {
                 val path = Path()
                 path.moveTo(cx, cy - radius)
@@ -118,6 +121,7 @@ object ColorUtils {
                 path.close()
                 canvas.drawPath(path, paint)
             }
+            networkType.contains("SA", ignoreCase = true) -> canvas.drawCircle(cx, cy, radius, paint)
             networkType.contains("LTE", ignoreCase = true) -> {
                 val side = radius * 1.5f
                 canvas.drawRect(cx - side/2, cy - side/2, cx + side/2, cy + side/2, paint)
@@ -133,18 +137,19 @@ object ColorUtils {
             }
         }
 
-        // Add text
+        // Add text with larger size
         val textPaint = Paint().apply {
             this.color = Color.BLACK
-            textSize = (10 * context.resources.displayMetrics.density)
+            textSize = (14 * context.resources.displayMetrics.density)
             textAlign = Paint.Align.CENTER
             isAntiAlias = true
-            isFakeBoldText = true // Make the text bold for better visibility
+            isFakeBoldText = true
         }
 
+        // Check NSA first to avoid matching "SA" in "NSA"
         val textToDisplay = when {
-            networkType.contains("SA", ignoreCase = true) -> "SA"
             networkType.contains("NSA", ignoreCase = true) -> "NSA"
+            networkType.contains("SA", ignoreCase = true) -> "SA"
             networkType.contains("LTE", ignoreCase = true) -> "LTE"
             else -> ""
         }
