@@ -105,46 +105,82 @@ class MeasureService : Service() {
 
     private suspend fun performMeasurementAndSave(url: String) {
         val latencyMs = networkMonitor.measureLatency(url)
-        
+
         // Add timeout for location retrieval to prevent hanging
         val location = withTimeoutOrNull(10000L) {
             locationHelper.getCurrentLocation()
         }
-        
+
         if (location == null) {
              Log.w("MeasureService", "Location retrieval timed out or failed")
         }
 
-        val networkInfo = networkInfoHelper.getCurrentNetworkInfo()
         val locationName = location?.let { locationHelper.getLocationName(it.latitude, it.longitude) }
-        
-        val record = MeasurementRecord(
-            timestamp = System.currentTimeMillis(),
-            latencyMs = latencyMs,
-            networkType = networkInfo.type,
-            operatorAlphaShort = networkInfo.operatorAlphaShort,
-            cellId = networkInfo.cellId,
-            pci = networkInfo.pci,
-            bandInfo = networkInfo.band,
-            earfcn = null,              // TODO: Extract from getAllCellDataList()
-            bandNumber = null,          // TODO: Extract from bandInfo
-            signalStrength = networkInfo.signalStrength,
-            bandwidth = networkInfo.bandwidth,
-            neighborCells = null,
-            timingAdvance = networkInfo.timingAdvance,
-            isRegistered = true,
-            subscriptionId = -1,
-            rssi = networkInfo.rssi,
-            rsrp = networkInfo.rsrp,
-            rsrq = networkInfo.rsrq,
-            sinr = networkInfo.sinr,
-            latitude = location?.latitude ?: 0.0,
-            longitude = location?.longitude ?: 0.0,
-            locationName = locationName
-        )
-        
-        recordDao.insertRecord(record)
-        Log.d("MeasureService", "Recorded: $record")
+        val timestamp = System.currentTimeMillis()
+
+        // Get all cell data from all subscriptions (including unregistered/neighbor cells)
+        val allCellData = networkInfoHelper.getAllCellDataList()
+
+        if (allCellData.isEmpty()) {
+            // Fallback to old method if no cell data available
+            val networkInfo = networkInfoHelper.getCurrentNetworkInfo()
+            val record = MeasurementRecord(
+                timestamp = timestamp,
+                latencyMs = latencyMs,
+                networkType = networkInfo.type,
+                operatorAlphaShort = networkInfo.operatorAlphaShort,
+                cellId = networkInfo.cellId,
+                pci = networkInfo.pci,
+                bandInfo = networkInfo.band,
+                earfcn = null,
+                bandNumber = null,
+                signalStrength = networkInfo.signalStrength,
+                bandwidth = networkInfo.bandwidth,
+                neighborCells = null,
+                timingAdvance = networkInfo.timingAdvance,
+                isRegistered = true,
+                subscriptionId = -1,
+                rssi = networkInfo.rssi,
+                rsrp = networkInfo.rsrp,
+                rsrq = networkInfo.rsrq,
+                sinr = networkInfo.sinr,
+                latitude = location?.latitude ?: 0.0,
+                longitude = location?.longitude ?: 0.0,
+                locationName = locationName
+            )
+            recordDao.insertRecord(record)
+            Log.d("MeasureService", "Recorded (fallback): $record")
+        } else {
+            // Save a record for each cell (including SIM2 and neighbor cells)
+            allCellData.forEach { cellData ->
+                val record = MeasurementRecord(
+                    timestamp = timestamp,
+                    latencyMs = latencyMs,
+                    networkType = cellData.networkType,
+                    operatorAlphaShort = cellData.operatorAlphaShort,
+                    cellId = cellData.cellId,
+                    pci = cellData.pci,
+                    bandInfo = "${cellData.bandNumber ?: "N/A"}_${cellData.arfcn ?: "N/A"}",
+                    earfcn = cellData.arfcn,
+                    bandNumber = cellData.bandNumber,
+                    signalStrength = cellData.signalStrength,
+                    bandwidth = cellData.bandwidth,
+                    neighborCells = null,
+                    timingAdvance = cellData.timingAdvance,
+                    isRegistered = cellData.isRegistered,
+                    subscriptionId = cellData.subscriptionId,
+                    rssi = cellData.rssi,
+                    rsrp = cellData.signalStrength,  // signalStrength in CellData is RSRP
+                    rsrq = cellData.rsrq,
+                    sinr = cellData.sinr,
+                    latitude = location?.latitude ?: 0.0,
+                    longitude = location?.longitude ?: 0.0,
+                    locationName = locationName
+                )
+                recordDao.insertRecord(record)
+                Log.d("MeasureService", "Recorded cell: ${cellData.bandNumber}/${cellData.cellId} (SIM${cellData.subscriptionId}, registered=${cellData.isRegistered})")
+            }
+        }
     }
 
     override fun onDestroy() {

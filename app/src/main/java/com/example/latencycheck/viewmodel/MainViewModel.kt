@@ -292,54 +292,93 @@ class MainViewModel @Inject constructor(
         return result
     }
 
-    // Cell Summary aggregation functions
-    fun getArfcnSummary(records: List<MeasurementRecord>): List<CellSummary.ArfcnSummary> {
+    // Cell Summary aggregation functions - Updated for table format with separate Band and ARFCN columns
+    fun getBandArfcnSummary(records: List<MeasurementRecord>): List<BandArfcnSummary> {
         return records
             .filter { it.cellId != null }
-            .groupBy { it.bandInfo }
-            .map { (bandInfo, bandRecords) ->
-                val networkType = bandRecords.firstOrNull()?.networkType ?: "Unknown"
-                val uniqueCells = bandRecords.map { it.cellId }.distinct().size
-                CellSummary.ArfcnSummary(
-                    arfcnValue = bandInfo,
-                    band = bandInfo,
-                    networkType = networkType,
-                    uniqueCellCount = uniqueCells,
-                    recordCount = bandRecords.size,
-                    latestTimestamp = bandRecords.maxOfOrNull { it.timestamp } ?: 0L,
-                    records = bandRecords.sortedByDescending { it.timestamp }
+            .groupBy { it.bandNumber ?: extractBandFromBandInfo(it.bandInfo) }
+            .map { (bandNumber, bandRecords) ->
+                // Group by ARFCN within this band
+                val arfcnGroups = bandRecords.groupBy { it.earfcn }
+                val arfcnSummaries = arfcnGroups.map { (earfcn, arfcnRecords) ->
+                    val networkType = arfcnRecords.firstOrNull()?.networkType ?: "Unknown"
+                    ArfcnDetail(
+                        arfcnValue = earfcn ?: 0,
+                        arfcnDisplay = formatArfcn(earfcn, networkType),
+                        networkType = networkType,
+                        uniqueCellCount = arfcnRecords.map { it.cellId }.distinct().size,
+                        recordCount = arfcnRecords.size,
+                        latestTimestamp = arfcnRecords.maxOfOrNull { it.timestamp } ?: 0L,
+                        registeredCount = arfcnRecords.count { it.isRegistered },
+                        unregisteredCount = arfcnRecords.count { !it.isRegistered },
+                        sim1Count = arfcnRecords.count { it.subscriptionId == 0 },
+                        sim2Count = arfcnRecords.count { it.subscriptionId == 1 }
+                    )
+                }.sortedByDescending { it.recordCount }
+
+                BandArfcnSummary(
+                    bandNumber = bandNumber ?: "Unknown",
+                    networkType = bandRecords.firstOrNull()?.networkType ?: "Unknown",
+                    arfcnDetails = arfcnSummaries,
+                    totalUniqueCells = bandRecords.map { it.cellId }.distinct().size,
+                    totalRecords = bandRecords.size
                 )
             }
-            .sortedByDescending { it.recordCount }
+            .sortedByDescending { it.totalRecords }
     }
 
-    fun getCellIdSummaryForArfcn(records: List<MeasurementRecord>, arfcnValue: String): List<CellSummary.CellIdSummary> {
+    fun getCellIdSummaryForBandArfcn(
+        records: List<MeasurementRecord>,
+        bandNumber: String,
+        arfcnValue: Int?
+    ): List<CellIdDetailSummary> {
         return records
-            .filter { it.bandInfo == arfcnValue && it.cellId != null }
+            .filter {
+                (it.bandNumber == bandNumber || extractBandFromBandInfo(it.bandInfo) == bandNumber) &&
+                it.earfcn == arfcnValue &&
+                it.cellId != null
+            }
             .groupBy { it.cellId!! }
             .map { (cellId, cellRecords) ->
                 val firstRecord = cellRecords.firstOrNull()
                 val latestRecord = cellRecords.maxByOrNull { it.timestamp }
-                CellSummary.CellIdSummary(
+                CellIdDetailSummary(
                     cellId = cellId,
                     pci = firstRecord?.pci,
+                    bandNumber = bandNumber,
                     arfcnValue = arfcnValue,
-                    band = arfcnValue,
                     networkType = firstRecord?.networkType ?: "Unknown",
                     recordCount = cellRecords.size,
                     avgRsrp = cellRecords.mapNotNull { it.rsrp }.takeIf { it.isNotEmpty() }?.average()?.toInt(),
                     latestLatitude = latestRecord?.latitude ?: 0.0,
                     latestLongitude = latestRecord?.longitude ?: 0.0,
                     latestTimestamp = latestRecord?.timestamp ?: 0L,
+                    registeredCount = cellRecords.count { it.isRegistered },
+                    unregisteredCount = cellRecords.count { !it.isRegistered },
+                    sim1Count = cellRecords.count { it.subscriptionId == 0 },
+                    sim2Count = cellRecords.count { it.subscriptionId == 1 },
                     records = cellRecords.sortedByDescending { it.timestamp }
                 )
             }
             .sortedByDescending { it.recordCount }
     }
 
-    fun searchRecordsByBandOrCellId(searchQuery: String): kotlinx.coroutines.flow.Flow<List<CellSummary.ArfcnSummary>> {
+    private fun extractBandFromBandInfo(bandInfo: String): String? {
+        // Extract band from format like "B1_1234" or "n78_567890"
+        return bandInfo.substringBefore("_").takeIf { it.isNotBlank() }
+    }
+
+    private fun formatArfcn(earfcn: Int?, networkType: String): String {
+        if (earfcn == null) return "N/A"
+        return when {
+            networkType.contains("NR") -> "NRARFCN: $earfcn"
+            else -> "EARFCN: $earfcn"
+        }
+    }
+
+    fun searchRecordsByBandOrCellId(searchQuery: String): kotlinx.coroutines.flow.Flow<List<BandArfcnSummary>> {
         return recordDao.searchByBandOrCellId(searchQuery)
-            .map { records -> getArfcnSummary(records) }
+            .map { records -> getBandArfcnSummary(records) }
     }
 }
 
@@ -348,3 +387,43 @@ sealed interface UiState {
     data class Success(val records: List<MeasurementRecord>) : UiState
     data class Error(val exception: Throwable) : UiState
 }
+
+// New data classes for table format Cell Summary
+data class BandArfcnSummary(
+    val bandNumber: String,
+    val networkType: String,
+    val arfcnDetails: List<ArfcnDetail>,
+    val totalUniqueCells: Int,
+    val totalRecords: Int
+)
+
+data class ArfcnDetail(
+    val arfcnValue: Int,
+    val arfcnDisplay: String,
+    val networkType: String,
+    val uniqueCellCount: Int,
+    val recordCount: Int,
+    val latestTimestamp: Long,
+    val registeredCount: Int,
+    val unregisteredCount: Int,
+    val sim1Count: Int,
+    val sim2Count: Int
+)
+
+data class CellIdDetailSummary(
+    val cellId: String,
+    val pci: Int?,
+    val bandNumber: String,
+    val arfcnValue: Int?,
+    val networkType: String,
+    val recordCount: Int,
+    val avgRsrp: Int?,
+    val latestLatitude: Double,
+    val latestLongitude: Double,
+    val latestTimestamp: Long,
+    val registeredCount: Int,
+    val unregisteredCount: Int,
+    val sim1Count: Int,
+    val sim2Count: Int,
+    val records: List<MeasurementRecord>
+)
