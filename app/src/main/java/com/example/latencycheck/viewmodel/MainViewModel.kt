@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.latencycheck.data.AppPreferences
+import com.example.latencycheck.data.CellSummary
 import com.example.latencycheck.data.MeasurementRecord
 import com.example.latencycheck.data.RecordDao
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -285,6 +286,56 @@ class MainViewModel @Inject constructor(
         }
         result.add(current.toString())
         return result
+    }
+
+    // Cell Summary aggregation functions
+    fun getArfcnSummary(records: List<MeasurementRecord>): List<CellSummary.ArfcnSummary> {
+        return records
+            .filter { it.cellId != null }
+            .groupBy { it.bandInfo }
+            .map { (bandInfo, bandRecords) ->
+                val networkType = bandRecords.firstOrNull()?.networkType ?: "Unknown"
+                val uniqueCells = bandRecords.map { it.cellId }.distinct().size
+                CellSummary.ArfcnSummary(
+                    arfcnValue = bandInfo,
+                    band = bandInfo,
+                    networkType = networkType,
+                    uniqueCellCount = uniqueCells,
+                    recordCount = bandRecords.size,
+                    latestTimestamp = bandRecords.maxOfOrNull { it.timestamp } ?: 0L,
+                    records = bandRecords.sortedByDescending { it.timestamp }
+                )
+            }
+            .sortedByDescending { it.recordCount }
+    }
+
+    fun getCellIdSummaryForArfcn(records: List<MeasurementRecord>, arfcnValue: String): List<CellSummary.CellIdSummary> {
+        return records
+            .filter { it.bandInfo == arfcnValue && it.cellId != null }
+            .groupBy { it.cellId!! }
+            .map { (cellId, cellRecords) ->
+                val firstRecord = cellRecords.firstOrNull()
+                val latestRecord = cellRecords.maxByOrNull { it.timestamp }
+                CellSummary.CellIdSummary(
+                    cellId = cellId,
+                    pci = firstRecord?.pci,
+                    arfcnValue = arfcnValue,
+                    band = arfcnValue,
+                    networkType = firstRecord?.networkType ?: "Unknown",
+                    recordCount = cellRecords.size,
+                    avgRsrp = cellRecords.mapNotNull { it.rsrp }.takeIf { it.isNotEmpty() }?.average()?.toInt(),
+                    latestLatitude = latestRecord?.latitude ?: 0.0,
+                    latestLongitude = latestRecord?.longitude ?: 0.0,
+                    latestTimestamp = latestRecord?.timestamp ?: 0L,
+                    records = cellRecords.sortedByDescending { it.timestamp }
+                )
+            }
+            .sortedByDescending { it.recordCount }
+    }
+
+    fun searchRecordsByBandOrCellId(searchQuery: String): kotlinx.coroutines.flow.Flow<List<CellSummary.ArfcnSummary>> {
+        return recordDao.searchByBandOrCellId(searchQuery)
+            .map { records -> getArfcnSummary(records) }
     }
 }
 

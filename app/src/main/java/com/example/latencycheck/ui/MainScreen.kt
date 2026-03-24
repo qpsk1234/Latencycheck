@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.CellTower
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -74,7 +75,8 @@ fun MainScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToSummary: () -> Unit,
     onNavigateToMap: () -> Unit,
-    onNavigateToDebug: () -> Unit
+    onNavigateToDebug: () -> Unit,
+    onNavigateToCellSummary: () -> Unit
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -108,6 +110,9 @@ fun MainScreen(
             TopAppBar(
                 title = { Text("Latency Check") },
                 actions = {
+                    IconButton(onClick = onNavigateToCellSummary) {
+                        Icon(Icons.Filled.CellTower, contentDescription = "Cell Summary")
+                    }
                     IconButton(onClick = onNavigateToDebug) {
                         Icon(Icons.Filled.Build, contentDescription = "Debug")
                     }

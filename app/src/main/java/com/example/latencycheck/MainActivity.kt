@@ -19,6 +19,7 @@ import com.example.latencycheck.ui.MapScreen
 import com.example.latencycheck.ui.ColorSettingsScreen
 import com.example.latencycheck.ui.SummaryScreen
 import com.example.latencycheck.ui.DebugScreen
+import com.example.latencycheck.ui.CellSummaryScreen
 import com.example.latencycheck.ui.theme.LatencycheckTheme
 import com.example.latencycheck.viewmodel.MainViewModel
 import com.example.latencycheck.service.NetworkInfoHelper
@@ -59,7 +60,8 @@ fun AppNavigation(networkInfoHelper: NetworkInfoHelper) {
                 onNavigateToHistory = { navController.navigate("history") },
                 onNavigateToSummary = { navController.navigate("summary") },
                 onNavigateToMap = { navController.navigate("map") },
-                onNavigateToDebug = { navController.navigate("debug") }
+                onNavigateToDebug = { navController.navigate("debug") },
+                onNavigateToCellSummary = { navController.navigate("cell_summary") }
             )
         }
         composable("history") {
@@ -97,6 +99,17 @@ fun AppNavigation(networkInfoHelper: NetworkInfoHelper) {
             DebugScreen(
                 networkInfoHelper = networkInfoHelper,
                 onNavigateBack = { navController.popBackStack() }
+            )
+        }
+        composable("cell_summary") {
+            CellSummaryScreen(
+                viewModel = viewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToMap = { lat, lon ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set("initialLat", lat)
+                    navController.previousBackStackEntry?.savedStateHandle?.set("initialLon", lon)
+                    navController.navigate("map")
+                }
             )
         }
     }

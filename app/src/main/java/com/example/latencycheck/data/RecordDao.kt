@@ -12,7 +12,10 @@ interface RecordDao {
 
     @Query("SELECT * FROM measurement_records ORDER BY timestamp DESC")
     fun getAllRecords(): Flow<List<MeasurementRecord>>
-    
+
+    @Query("SELECT * FROM measurement_records WHERE bandInfo LIKE '%' || :search || '%' OR cellId LIKE '%' || :search || '%' ORDER BY timestamp DESC")
+    fun searchByBandOrCellId(search: String): Flow<List<MeasurementRecord>>
+
     @Query("DELETE FROM measurement_records")
     suspend fun clearAll()
 }
