@@ -77,24 +77,26 @@ Jetpack Compose を使用した画面構成です。
 *   **MainScreen.kt**: アプリのメイン画面。ボトムナビゲーションによる画面切り替えを管理します。
 *   **MapScreen.kt**: `osmdroid` を使用し、計測結果を地図上にプロットします。レイテンシの値に応じてマーカーの色が変化します。
 *   **HistoryScreen.kt**: 計測ログをリスト形式で表示します。
+*   **CellSummaryScreen.kt**: 基地局情報を表形式で表示。バンド、ARFCN/NRARFCN、Cell IDごとに集計し、デュアルSIM（SIM1/SIM2）や登録/未登録セルの状態も表示します。
 *   **SummaryScreen.kt**: 統計情報（平均値、最大・最小値など）を表示します。
 *   **SettingsScreen.kt**: 計測間隔、ターゲットURL、閾値などの設定画面。
 *   **ColorSettingsScreen.kt**: マップ上の色分け（レイテンシに応じた色）をカスタマイズする画面。
 *   **ColorUtils.kt**: レイテンシの数値から表示色を決定するロジック。
 
 ### ViewModel 層 (`com.example.latencycheck.viewmodel`)
-*   **MainViewModel.kt**: UIの状態管理、設定情報の保持、CSVのインポート/エクスポート処理、バックグラウンドサービスの開始/停止指示を行います。
+*   **MainViewModel.kt**: UIの状態管理、設定情報の保持、CSVのインポート/エクスポート処理、バックグラウンドサービスの開始/停止指示を行います。Cell Summary用の集計機能（バンド→ARFCN→Cell IDの階層構造、デュアルSIM別カウント、登録/未登録セルの集計）も提供します。
 
 ### Service 層 (`com.example.latencycheck.service`)
-*   **MeasureService.kt**: フォアグラウンドサービス。`WakeLock` を使用してバックグラウンド・スリープ中も計測ループを維持し、データを Room データベースに保存します。
-*   **NetworkInfoHelper.kt**: `TelephonyCallback` 等を利用し、5G SA/NSA の判別、物理チャンネル設定（CA状態）の監視、NRARFCN からの 5G バンド名変換、RSRP、帯域幅、近隣セル、タイミングアドバンス(TA)などの詳細情報を取得します。
+*   **MeasureService.kt**: フォアグラウンドサービス。`WakeLock` を使用してバックグラウンド・スリープ中も計測ループを維持し、データを Room データベースに保存します。デュアルSIM端末では両方のSIMからの基地局情報を記録します。
+*   **NetworkInfoHelper.kt**: `TelephonyCallback` 等を利用し、5G SA/NSA の判別、物理チャンネル設定（CA状態）の監視、NRARFCN からの 5G バンド名変換、RSRP、帯域幅、近隣セル、タイミングアドバンス(TA)などの詳細情報を取得します。デュアルSIM対応のため全サブスクリプションからのセル情報を取得し、登録セルと未登録（近隣）セルの両方を記録します。
 *   **LocationHelper.kt**: `FusedLocationProviderClient` を用いた高精度な位置情報の取得と、逆ジオコーディングによる場所名（駅名やランドマーク優先）の取得を行います。
 
 ### Network 層 (`com.example.latencycheck.network`)
 *   **NetworkMonitor.kt**: 指定されたURLに対して実際に通信を行い、レイテンシ（ミリ秒）を測定します。
 
 ### Data 層 (`com.example.latencycheck.data`)
-*   **AppDatabase.kt / RecordDao.kt / MeasurementRecord.kt**: Roomライブラリを使用したローカルデータベース。計測データ（時刻、レイテンシ、電波情報、位置）を保存します。
+*   **AppDatabase.kt / RecordDao.kt / MeasurementRecord.kt**: Roomライブラリを使用したローカルデータベース。計測データ（時刻、レイテンシ、電波情報、位置）を保存します。データベースv5ではデュアルSIM対応のため `subscriptionId`、登録状態 `isRegistered`、EARFCN/NRARFCN `earfcn`、バンド番号 `bandNumber` などの詳細フィールドを追加。
+*   **DatabaseMigrations.kt**: データベースバージョン4→5への移行処理。既存データを保持しながら新しいセル情報用カラムを追加します。
 *   **AppPreferences.kt**: DataStore を使用し、ユーザー設定（計測間隔、ターゲットURLなど）を永続化します。
 
 ### DI (Dependency Injection) (`com.example.latencycheck.di`)
