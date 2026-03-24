@@ -9,14 +9,18 @@ data class MeasurementRecord(
     val timestamp: Long,
     val latencyMs: Long,
     val networkType: String,
-    val operatorAlphaShort: String?, // Added field
-    val cellId: String?, // Added field
-    val pci: Int?, // Added field
+    val operatorAlphaShort: String?,
+    val cellId: String?,
+    val pci: Int?,
     val bandInfo: String,
+    val earfcn: Int?,          // EARFCN for LTE or NRARFCN for NR
+    val bandNumber: String?,   // Band number (e.g., "B1", "n78")
     val signalStrength: Int?,
     val bandwidth: String?,
     val neighborCells: String?,
     val timingAdvance: Int?,
+    val isRegistered: Boolean = true,  // Whether this is the registered/serving cell
+    val subscriptionId: Int = -1,      // For dual SIM support
     val rssi: Int? = null,
     val rsrp: Int? = null,
     val rsrq: Int? = null,

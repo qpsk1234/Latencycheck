@@ -139,6 +139,24 @@ class NetworkInfoHelper @Inject constructor(
         }
     }
 
+    data class CellData(
+        val subscriptionId: Int,
+        val isRegistered: Boolean,
+        val networkType: String,
+        val operatorAlphaShort: String?,
+        val cellId: String?,
+        val pci: Int?,
+        val bandNumber: String?,     // e.g., "B1", "n78"
+        val arfcn: Int?,             // EARFCN or NRARFCN
+        val signalStrength: Int?,    // RSRP
+        val rssi: Int?,
+        val rsrq: Int?,
+        val sinr: Int?,
+        val timingAdvance: Int?,
+        val bandwidth: String?
+    )
+
+    @Deprecated("Use getAllCellDataList() instead")
     data class NetworkState(
         val type: String,
         val operatorAlphaShort: String?,
@@ -414,6 +432,117 @@ class NetworkInfoHelper @Inject constructor(
             dumpRawTelephonyInfo("getCurrentNetworkInfo")
         }
         return state
+    }
+
+    // New method: Get cell data from all subscriptions and all cells (registered + unregistered)
+    @SuppressLint("MissingPermission")
+    fun getAllCellDataList(): List<CellData> {
+        val allCellData = mutableListOf<CellData>()
+
+        try {
+            // Get all active subscription IDs
+            val subIds = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                subscriptionManager.activeSubscriptionInfoList?.map { it.subscriptionId } ?: listOf(
+                    android.telephony.SubscriptionManager.getActiveDataSubscriptionId())
+            } else {
+                listOf(android.telephony.SubscriptionManager.getDefaultDataSubscriptionId())
+            }
+
+            for (subId in subIds) {
+                val tm = if (subId != android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
+                    telephonyManager.createForSubscriptionId(subId)
+                } else {
+                    telephonyManager
+                }
+
+                val operatorAlphaShort = tm.serviceState?.operatorAlphaShort
+
+                // Get network type for this subscription
+                val netType = try {
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) tm.dataNetworkType else tm.networkType
+                } catch (e: Exception) { TelephonyManager.NETWORK_TYPE_UNKNOWN }
+
+                val networkType = when (netType) {
+                    TelephonyManager.NETWORK_TYPE_NR -> "5G SA"
+                    TelephonyManager.NETWORK_TYPE_LTE -> "LTE"
+                    else -> "Other"
+                }
+
+                // Process all cell info for this subscription
+                val cellInfoList = tm.allCellInfo
+                cellInfoList?.forEach { cellInfo ->
+                    try {
+                        val isRegistered = cellInfo.isRegistered
+
+                        when {
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && cellInfo is CellInfoNr -> {
+                                val nr = cellInfo.cellIdentity as android.telephony.CellIdentityNr
+                                val ssNr = cellInfo.cellSignalStrength as? android.telephony.CellSignalStrengthNr
+
+                                // Determine band number and ARFCN
+                                val arfcn = if (nr.nrarfcn != Int.MAX_VALUE) nr.nrarfcn else null
+                                val bandNumber = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && nr.bands.isNotEmpty()) {
+                                    "n${nr.bands.first()}"
+                                } else {
+                                    arfcn?.let { getNrBandFromArfcn(it) } ?: "N/A"
+                                }
+
+                                allCellData.add(CellData(
+                                    subscriptionId = subId,
+                                    isRegistered = isRegistered,
+                                    networkType = if (isRegistered) networkType else "NR (Neighbor)",
+                                    operatorAlphaShort = operatorAlphaShort,
+                                    cellId = if (nr.nci != Long.MAX_VALUE) nr.nci.toString() else null,
+                                    pci = if (nr.pci != Int.MAX_VALUE) nr.pci else null,
+                                    bandNumber = bandNumber,
+                                    arfcn = arfcn,
+                                    signalStrength = ssNr?.ssRsrp,
+                                    rssi = null, // NR doesn't have RSSI in the same way
+                                    rsrq = ssNr?.ssRsrq,
+                                    sinr = ssNr?.ssSinr,
+                                    timingAdvance = null, // NR may not have TA
+                                    bandwidth = null
+                                ))
+                            }
+                            cellInfo is CellInfoLte -> {
+                                val lte = cellInfo.cellIdentity
+                                val ssLte = cellInfo.cellSignalStrength
+
+                                val earfcn = if (lte.earfcn != Int.MAX_VALUE) lte.earfcn else null
+                                val bandNumber = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && lte.bands.isNotEmpty()) {
+                                    "B${lte.bands.first()}"
+                                } else {
+                                    earfcn?.let { "EARFCN:$it" } ?: "N/A"
+                                }
+
+                                allCellData.add(CellData(
+                                    subscriptionId = subId,
+                                    isRegistered = isRegistered,
+                                    networkType = if (isRegistered) networkType else "LTE (Neighbor)",
+                                    operatorAlphaShort = operatorAlphaShort,
+                                    cellId = if (lte.ci != Int.MAX_VALUE) lte.ci.toString() else null,
+                                    pci = if (lte.pci != Int.MAX_VALUE) lte.pci else null,
+                                    bandNumber = if (bandNumber.startsWith("B")) bandNumber else null,
+                                    arfcn = earfcn,
+                                    signalStrength = ssLte.rsrp,
+                                    rssi = ssLte.rssi,
+                                    rsrq = ssLte.rsrq,
+                                    sinr = ssLte.rssnr,
+                                    timingAdvance = ssLte.timingAdvance,
+                                    bandwidth = null
+                                ))
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.w("NetworkInfoHelper", "Error processing cell info", e)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("NetworkInfoHelper", "Error getting all cell data", e)
+        }
+
+        return allCellData
     }
 
     @SuppressLint("MissingPermission")

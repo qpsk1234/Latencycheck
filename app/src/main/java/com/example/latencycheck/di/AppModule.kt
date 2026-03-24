@@ -3,6 +3,7 @@ package com.example.latencycheck.di
 import android.content.Context
 import androidx.room.Room
 import com.example.latencycheck.data.AppDatabase
+import com.example.latencycheck.data.DatabaseMigrations
 import com.example.latencycheck.data.RecordDao
 import dagger.Module
 import dagger.Provides
@@ -22,7 +23,8 @@ object AppModule {
             context,
             AppDatabase::class.java,
             "latency_db"
-        ).fallbackToDestructiveMigration()
+        )
+            .addMigrations(DatabaseMigrations.MIGRATION_4_5)
             .build()
     }
 

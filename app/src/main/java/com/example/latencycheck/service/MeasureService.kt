@@ -126,10 +126,14 @@ class MeasureService : Service() {
             cellId = networkInfo.cellId,
             pci = networkInfo.pci,
             bandInfo = networkInfo.band,
+            earfcn = null,              // TODO: Extract from getAllCellDataList()
+            bandNumber = null,          // TODO: Extract from bandInfo
             signalStrength = networkInfo.signalStrength,
             bandwidth = networkInfo.bandwidth,
             neighborCells = null,
             timingAdvance = networkInfo.timingAdvance,
+            isRegistered = true,
+            subscriptionId = -1,
             rssi = networkInfo.rssi,
             rsrp = networkInfo.rsrp,
             rsrq = networkInfo.rsrq,
